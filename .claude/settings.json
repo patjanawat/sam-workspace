@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(d:\\2026\\sam-workspace\\**)",
+      "Bash(git -C web:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet run:*)",
+      "Bash(dotnet ef:*)",
+      "Bash(cd web/web/backend*)"
+    ]
+  }
+}

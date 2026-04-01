@@ -1,0 +1,6 @@
+{
+  "web_repo_path": "d:\\2026\\sam-workspace\\web",
+  "be_repo_path": "d:\\2026\\sam-workspace\\web\\web\\backend",
+  "fe_repo_path": "d:\\2026\\sam-workspace\\web\\web\\frontend",
+  "be_tests_path": "d:\\2026\\sam-workspace\\web\\web\\backend\\SamApp.WebApi.Tests"
+}
