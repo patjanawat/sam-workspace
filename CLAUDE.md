@@ -137,8 +137,9 @@ git -C web push
 
 - **Before starting any task — summarize what will be done, which files will be affected, and wait for confirmation before proceeding**
 - **Always create a new branch before making any code changes** — never work directly on `develop` or `master`
+- **Never make any code change without explicit user confirmation** — present the plan, wait for "yes" or "confirm", then proceed
 - **Never commit or push without explicit user confirmation**
-- All code changes target `web/web/` — backend in `backend/`, frontend in `frontend/`
+- **NEVER modify any files inside the `web/` submodule** — do NOT edit any FE or BE source files under `web/` (including `web/web/backend/` and `web/web/frontend/`) unless explicitly instructed
 - `web/` is a git submodule — always use `git -C web` for git operations inside it
 
 ### Workflow for Every Task
