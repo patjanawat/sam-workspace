@@ -1,0 +1,497 @@
+for SAM web app
+
+Change Requests (CR 5) Package
+
+For Asia Cement Public Company Limited
+
+Document Version: December 22, 2025
+
+[][Icon Description automatically generated][]
+
+Contents
+
+Contents 2
+
+Reason for Change 3
+
+Proposed Solution 3
+
+Our Process 3
+
+Scope of Work 4
+
+3.1: Multiple Proposal Data Merge 4
+
+3.3: Proposal Priority Rules 6
+
+Compatibility 7
+
+Documentation 7
+
+Timeline 7
+
+Fee Summary 7
+
+Payment Terms & Schedule 8
+
+Acceptance 8
+
+Next Steps 8
+
+General Terms and Conditions 9
+
+Validity 9
+
+Exclusions 9
+
+Your Responsibilities 9
+
+Warranty 9
+
+ Reason for Change
+
+Asia Cement Public Company Limited (referred to in this proposal as ACC)
+has an existing solution, the SAM web app, that is currently being
+development by Manao Software. The current PAM proposal and rebate
+workflow has three gaps that create process misalignment with ACC rules
+and avoidable user friction.
+
+Currently, the SAM system treats each proposal as an independent entity.
+Proposals can be created and approved individually by managers without
+dependency on other proposals. However, when synchronizing approved
+proposal data back to the SAP system, there are several restrictions and
+business rules that must be enforced.
+
+These constraints have resulted in data inconsistencies and limitations
+in the current synchronization process. Therefore, an enhancement to the
+SAM backend service is required to properly store proposal data, process
+business logic through stored procedures, and synchronize accurate and
+compliant data back to SAP.
+
+Together, these changes are needed to align PAM with ACC’s operating
+model, reduce calculation risk, and streamline the proposal user
+experience.
+
+Proposed Solution
+
+Manao Software will provide software development resources to design,
+implement, test, deploy, and maintain the requested Change Request (CR)
+for the ACC system. This document describes the implementation approach,
+understanding of the scope, proposed technical solution, and the
+associated delivery schedule and cost.
+
+The PAM system will be enhanced through two coordinated system
+improvements to align proposal structuring, rebate governance, and
+date-handling behavior with ACC’s defined business processes.
+
+First, PAM will support proposal data consolidation to enable accurate
+data persistence in the forcal table. This enhancement ensures that SAP
+synchronization and agreement calculation processes can be executed
+correctly and consistently.
+
+Second, PAM will introduce logic to evaluate customers appearing across
+multiple proposal types. When a customer exists in both Proposal Type R
+and Proposal Type S within the same evaluation period, the system will
+apply a defined priority rule and synchronize Proposal Type S data to
+ACC SAP for discount and rebate calculation, while suppressing Proposal
+Type R data for that customer. This logic ensures consistent processing
+and removes ambiguity during monthly calculation cycles.
+
+Our Process
+
+To avoid misunderstandings and delays all Change Requests are subject to
+the following process:
+
+1.  The client describes the needed change, and we document it in this
+    Change Request.
+
+2.  The client reviews the Change Request, and we revise if needed.
+
+3.  The client signs and returns the Change Request to accept it.
+
+4.  The development work is done.
+
+5.  The client reviews and accepts the delivery and the process is
+    complete.
+
+Scope of Work
+
+This scope delivers three change streams to close gaps in proposal
+structuring, rebate governance, and date-entry usability. Each part
+below includes a short intro, specific deliverables, technical approach,
+and explicit out-of-scope boundaries.
+
+3.1: Multiple Proposal Data Merge
+
+  Currently, the SAM system treats each proposal as an independent
+  entity. Proposals can be created and approved individually by managers
+  without dependency on other proposals. However, when synchronizing
+  approved proposal data back to the SAP system, there are several
+  restrictions and business rules that must be enforced.
+
+  These constraints have resulted in data inconsistencies and
+  limitations in the current synchronization process. Therefore, an
+  enhancement to the SAM backend service is required to properly store
+  proposal data, process business logic through stored procedures, and
+  synchronize accurate and compliant data back to SAP.
+
+Proposal Type P: Conditions
+
+- Proposal Type P does not involve rebate processing.
+
+- Data from Proposal Type P will not be stored in the forcal table.
+
+- SAP synchronization is limited to non-rebate related data only.
+
+Proposal Type P – Flow 2 and Flow 3
+
+- Users must create separate proposals for each combination of:
+
+  - Customer Group
+
+  - Ship-to
+
+This separation is required so that SAM can validate the correct
+contract number from SAP.
+
+Example:
+
+- Customer Group 1 + Ship-to A → Contract No. A
+
+- Customer Group 1 + Ship-to B → Contract No. B
+
+Proposal Type R: Conditions
+
+Flow 1 – Discount Only
+
+- Discount-only proposals have no impact on SAP because SAP can
+  automatically split discount periods by date.
+
+- When discount values change during an active period, users must create
+  new proposals with adjusted date ranges and versions.
+
+Example:
+
+- Proposal R #001 (Version 0): Jan 1–31, Discount 5 THB/ton (Approved)
+
+- Proposal R #001 (Version 1): Jan 1–12, Discount 5 THB/ton
+
+- Proposal R #002 (Version 0): Jan 13–31, Discount 8 THB/ton
+
+Each proposal must be submitted and approved separately.
+
+Flow 4 – Rebate + Accumulate
+
+- Rebate proposals require strict handling and synchronization with SAP.
+
+- When a rebate value changes, proposals must be split by date range.
+
+- Upon approval:
+
+  - Active proposals are inserted into the forcal table.
+
+  - Inactive or superseded proposals are removed from forcal.
+
+Key Attributes:
+
+- Sales Organization
+
+- Sold-to
+
+- Proposal Month (pmonth)
+
+- Proposal Year (pyear)
+
+- Rebate Type
+
+- From Date
+
+- To Date
+
+Proposal Type S: Conditions
+
+Flow 1 – Discount + Special Accumulate
+
+- Discount logic behaves similarly to Proposal Type R.
+
+- SAP can handle date splitting automatically.
+
+- Special Accumulate values are tied to the proposal date range.
+
+Example:
+
+- Proposal S #001 (Version 0):
+
+  - Jan 1–31, Discount 5 THB/ton
+
+  - Special + Accumulate: 10 THB (Approved)
+
+If changes occur mid-period:
+
+- Proposal S #001 (Version 1): Jan 1–12, Discount 5 THB/ton, Special +
+  Accu 10 THB
+
+- Proposal S #002 (Version 0): Jan 13–31, Discount 8 THB/ton, Special +
+  Accu 20 THB
+
+Flow 4 – Rebate + Accumulate
+
+- Similar to Proposal Type R Flow 4, but includes Special Accumulate.
+
+- Upon approval:
+
+  - Discount and rebate data are inserted into forcal.
+
+  - Inactive proposals are removed.
+
+Key Attributes:
+
+- Sales Organization
+
+- Sold-to
+
+- Proposal Month (pmonth)
+
+- Proposal Year (pyear)
+
+- Rebate Type
+
+- From Date
+
+- To Date
+
+Out of scope
+
+- Proposal range overlapping validation, since Frontend UX/UI are not
+  updated
+
+- Any change to ACC monthly proposal policy.
+
+- Any SAP-side enhancement to support the new structure.
+
+3.3: Proposal Priority Rules
+
+This part enforces Proposal Type S Has Priority Over Proposal Type R. At
+the current SAP workflow, it would check following attributes and update
+approved discount or rebate regardless to the proposal priority and
+could cause incorrect data. Then the additional backend services need to
+handle the case as follows:
+
+Key Attributes for Priority Check:
+
+- Proposal Month (pmonth)
+
+- Proposal Year (pyear)
+
+- Sales Organization
+
+- Sold-to (Customer Code)
+
+Scenario 1: Proposal R Approved First, Then Proposal S
+
+1.  Proposal R is approved:
+
+    - SAM synchronizes data to SAP (Flow 1 and above).
+
+2.  Proposal S is approved afterward:
+
+    - SAM synchronizes Proposal S data to SAP, overriding Proposal R
+      data.
+
+    - Proposal R records are removed from the forcal table.
+
+Scenario 2: Proposal S Approved First, Then Proposal R
+
+1.  Proposal S is approved:
+
+    - SAM synchronizes data to SAP.
+
+2.  Proposal R is approved afterward:
+
+    - SAM checks if the customer exists in an approved Proposal S.
+
+    - If yes:
+
+      - Proposal R is ignored.
+
+      - No SAP synchronization occurs.
+
+      - No data is inserted into forcal.
+
+Backend Service Enhancement Required
+
+- Store proposal versions and activation status accurately.
+
+- Implement logic for proposal splitting by date range.
+
+- Enforce priority rules between Proposal S and Proposal R.
+
+- Insert only active proposals into forcal.
+
+- Automatically remove inactive or superseded proposals from forcal.
+
+- Ensure SAP synchronization follows defined business flows.
+
+Out of scope
+
+- Any change to ACC rebate formulas or calculation engine behavior.
+
+- New proposal types or customer hierarchy/roll-up rules beyond R/S.
+
+- Retroactive reprocessing of historical rebate periods unless
+  explicitly requested later.
+
+Compatibility
+
+Device and browser compatibility for this change request is the same as
+for the original solution.
+
+Documentation
+
+This change is delivered without additional documentation.
+
+Timeline
+
+Suggested start date: Dec 24, 2025
+
+The schedule is estimated based on the current scope of work. Changes or
+additions to the scope, or approving other change request proposals for
+simultaneous development, can extend the timeline.
+
+  ---------------------- ----- ----- ----- ----- ----- ----- ----- ----- ----
+  Requirement and UX/UI                                                  
+
+  Coding                                                                 
+
+  Testing                                                                
+
+  Release                                                                
+
+  Week                   1     2     3     4     5     6     7     8     
+  ---------------------- ----- ----- ----- ----- ----- ----- ----- ----- ----
+
+Milestone
+
+  ------------------------------------------------------------------------
+  Milestones   Description                                    Planned Date
+  ------------ ----------------------------------------- -----------------
+  M1           Functional demo of all 3 CRs                    Jan 5, 2026
+
+  M2           Release to ACC QA site                          Jan 6, 2026
+
+  M3           Production release on ACC Production            Jan 9, 2026
+  ------------------------------------------------------------------------
+
+Fee Summary
+
+Per ACC’s request, we propose a fixed price project due to the
+requirements and scope of work are well defined.
+
+  -----------------------------------------------------------------
+  Item                                                   Cost THB
+  ------------------------------------------- ---------- ----------
+  Software development service                           194,000
+
+  Special discount 3%                                    -5,820
+
+  Total after discount (excluded VAT)                    188,180
+  -----------------------------------------------------------------
+
+Payment Terms & Schedule
+
+This is a fixed fee project. The payment schedule is:
+
+1.  50% deposit payment is invoiced on proposal acceptance/sign off.
+
+2.  The rest is payable upon acceptance of the work.
+
+Acceptance
+
+To accept this proposal, please sign and date below and return it by
+email.
+
+Print name:
+
+Position:
+
+Date:
+
+Print name:
+
+Position:
+
+Date:
+
+Next Steps 
+
+To proceed, the next steps are to:
+
+1.  Discuss any desired changes with us. We’re flexible.
+
+2.  Accept the proposal by signing it and email to np@manaosoftware.com.
+
+When we receive the signed proposal, we will reserve the resources and
+contact you to schedule a kick-off meeting.
+
+General Terms and Conditions
+
+Validity
+
+This proposal is valid for 14 days.
+
+Exclusions
+
+These are our general exclusions. If a specific exclusion is
+contradicted in another part of this proposal, then the specific
+exclusion is waived, but the rest remain effective.
+
+1.  Tasks that are not explicitly stated in this document or agreed to
+    in writing later
+
+2.  Travel time and expenses.
+
+3.  Training or education of users.
+
+4.  Warranty or bug fixes after the warranty period.
+
+5.  Creation, insertion, or transfer of content or media.
+
+6.  Royalties, licenses, or fees for images, videos, fonts, or other
+    content or media.
+
+7.  Modification or fixing of bugs in existing software packages.
+
+8.  Expenses for licenses, domains, web hosting, or other expenses
+    related to running the website.
+
+9.  Responsibility for lost profit, lost opportunities, or any other
+    loss or expense caused directly or indirectly by project delays.
+
+10. Responsibility for loss, interruption of service, security holes,
+    hacking, or any other kind of loss or expense resulting directly or
+    indirectly from use of the software.
+
+Your Responsibilities
+
+This project demands significant involvement by ACC personnel. To stay
+on schedule, we expect:
+
+- A contact person with in-depth knowledge of your business processes,
+  reachable by phone during normal office hours or by email.
+
+- Emails are replied on the next business day at the latest.
+
+- For Scrum based projects, ACC personnel perform a thorough review
+  after each sprint demo and provides the feedback to our team within 3
+  working days.
+
+- That your tasks and deliveries are completed on schedule.
+
+- Full access to your web hosting account, if applicable.
+
+Warranty
+
+The warranty for this change request is as if the change had been made
+as part of the original solution. No additional warranty is offered and
+accepting this change request does not extend or in other ways change
+the warranty for the original solution.

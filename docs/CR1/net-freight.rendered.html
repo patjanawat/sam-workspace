@@ -1,0 +1,1737 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>CR#1 - Freight Subsidy / Net Freight Correction</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="templates/cr-style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">CR#1 - Freight Subsidy / Net Freight Correction</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#cr1--freight-subsidy--net-freight-correction"
+id="toc-cr1--freight-subsidy--net-freight-correction">CR#1 — Freight
+Subsidy / Net Freight Correction</a>
+<ul>
+<li><a href="#meta" id="toc-meta">Meta</a></li>
+<li><a href="#revision-history" id="toc-revision-history">Revision
+History</a></li>
+<li><a href="#contents" id="toc-contents">Contents</a></li>
+<li><a href="#1-requirement" id="toc-1-requirement">1.
+Requirement</a></li>
+<li><a href="#2-current-state" id="toc-2-current-state">2. Current
+State</a></li>
+<li><a href="#3-target-state" id="toc-3-target-state">3. Target
+State</a></li>
+<li><a href="#4-assumptions" id="toc-4-assumptions">4.
+Assumptions</a></li>
+<li><a href="#5-out-of-scope" id="toc-5-out-of-scope">5. Out of
+Scope</a></li>
+<li><a href="#6-dependencies" id="toc-6-dependencies">6.
+Dependencies</a></li>
+<li><a href="#7-impact-analysis" id="toc-7-impact-analysis">7. Impact
+Analysis</a></li>
+<li><a href="#8-risks--mitigation" id="toc-8-risks--mitigation">8. Risks
+&amp; Mitigation</a></li>
+<li><a href="#9-proposed-solution" id="toc-9-proposed-solution">9.
+Proposed Solution</a></li>
+<li><a href="#10-rollout--cutover-plan"
+id="toc-10-rollout--cutover-plan">10. Rollout / Cutover Plan</a></li>
+<li><a href="#11-rollback-strategy" id="toc-11-rollback-strategy">11.
+Rollback Strategy</a></li>
+<li><a href="#12-monitoring--telemetry"
+id="toc-12-monitoring--telemetry">12. Monitoring &amp;
+Telemetry</a></li>
+<li><a href="#13-security--compliance"
+id="toc-13-security--compliance">13. Security / Compliance</a></li>
+<li><a href="#14-estimate" id="toc-14-estimate">14. Estimate</a></li>
+<li><a href="#15-success-metrics" id="toc-15-success-metrics">15.
+Success Metrics</a></li>
+<li><a href="#16-acceptance-criteria"
+id="toc-16-acceptance-criteria">16. Acceptance Criteria</a></li>
+<li><a href="#17-open-questions" id="toc-17-open-questions">17. Open
+Questions</a></li>
+<li><a href="#18-sign-off" id="toc-18-sign-off">18. Sign-off</a></li>
+<li><a href="#19-references" id="toc-19-references">19.
+References</a></li>
+<li><a href="#20-glossary" id="toc-20-glossary">20. Glossary</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="cr1--freight-subsidy--net-freight-correction">CR#1 — Freight
+Subsidy / Net Freight Correction</h1>
+<hr />
+<h2 id="meta">Meta</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CR ID</td>
+<td>CR#1</td>
+</tr>
+<tr>
+<td>Title</td>
+<td>Freight Subsidy / Net Freight Correction</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Draft — awaiting customer confirmation</td>
+</tr>
+<tr>
+<td>Module</td>
+<td>Proposal (Type R / S / P) + Approval views</td>
+</tr>
+<tr>
+<td>Owner</td>
+<td>K. North (data owner, DW side)</td>
+</tr>
+<tr>
+<td>Sponsor</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>Created</td>
+<td>2026-05-21</td>
+</tr>
+<tr>
+<td>Target Release</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>Priority</td>
+<td>High</td>
+</tr>
+<tr>
+<td>Source</td>
+<td>Customer change request (verbal) — K. North verified DW data</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="revision-history">Revision History</h2>
+<table>
+<thead>
+<tr>
+<th>Ver</th>
+<th>Date</th>
+<th>Author</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.1</td>
+<td>2026-05-21</td>
+<td>—</td>
+<td>Initial draft (HTML)</td>
+</tr>
+<tr>
+<td>0.2</td>
+<td>2026-05-22</td>
+<td>—</td>
+<td>Ported to markdown template</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="contents">Contents</h2>
+<ol type="1">
+<li><a href="#1-requirement">Requirement</a></li>
+<li><a href="#2-current-state">Current State</a></li>
+<li><a href="#3-target-state">Target State</a></li>
+<li><a href="#4-assumptions">Assumptions</a></li>
+<li><a href="#5-out-of-scope">Out of Scope</a></li>
+<li><a href="#6-dependencies">Dependencies</a></li>
+<li><a href="#7-impact-analysis">Impact Analysis</a></li>
+<li><a href="#8-risks--mitigation">Risks &amp; Mitigation</a></li>
+<li><a href="#9-proposed-solution">Proposed Solution</a></li>
+<li><a href="#10-rollout--cutover-plan">Rollout / Cutover Plan</a></li>
+<li><a href="#11-rollback-strategy">Rollback Strategy</a></li>
+<li><a href="#12-monitoring--telemetry">Monitoring &amp;
+Telemetry</a></li>
+<li><a href="#13-security--compliance">Security / Compliance</a></li>
+<li><a href="#14-estimate">Estimate</a></li>
+<li><a href="#15-success-metrics">Success Metrics</a></li>
+<li><a href="#16-acceptance-criteria">Acceptance Criteria</a></li>
+<li><a href="#17-open-questions">Open Questions</a></li>
+<li><a href="#18-sign-off">Sign-off</a></li>
+<li><a href="#19-references">References</a></li>
+<li><a href="#20-glossary">Glossary</a></li>
+</ol>
+<hr />
+<h2 id="1-requirement">1. Requirement</h2>
+<p>เปลี่ยน source ของ Net Freight data — การคำนวณต้องอิงจาก <strong>Org /
+Customer / Material</strong> (จากเดิม Org / Material). ใช้ data ที่ K. North
+verify แล้วใน DW.</p>
+<hr />
+<h2 id="2-current-state">2. Current State</h2>
+<p><strong>Pipeline:</strong></p>
+<pre class="mermaid"><code>flowchart LR
+  DW[(DW linked server&lt;br/&gt;THASDSINGDWP1.ACCDW)]
+    --&gt; V[View_SAM_FreightSubsidy]
+    --&gt; SP[sp_Sync_Subsidy&lt;br/&gt;hourly via SamSyncJob]
+    --&gt; T[(warehouse.Subsidy)]
+    --&gt; PP[ProposalProduct.SUBSIDY]
+    --&gt; UI[Approval view&lt;br/&gt;label: Net Freight]</code></pre>
+<p><strong>Key facts:</strong></p>
+<ul>
+<li><strong>Current key:</strong>
+<code>PERIOD + ORGNO + PRODUCT_CODE</code> (3 fields, ไม่มี Customer)</li>
+<li><strong>Snapshot model:</strong> <code>SUBSIDY</code> ถูก copy เข้า
+<code>ProposalProduct</code> ตอน create — proposal เก่าไม่กระทบเมื่อ data
+source เปลี่ยน</li>
+<li><strong>Display label:</strong> "Net Freight" แต่ value field =
+<code>freightSubsidy</code></li>
+</ul>
+<p><strong>Code references</strong> (commit TBD — pin SHA before
+approval):</p>
+<ul>
+<li><code>Sql/PamDB/Store-view/sp_Sync_warehouse.sql</code> —
+<code>sp_Sync_Subsidy</code></li>
+<li><code>Features/ProposalDetails/CreateCommand/CreateProposalProductDiscountRebate.cs</code>
+lines 33, 55</li>
+<li><code>Features/ProposalDetails/CreateCommand/CreateProposalProductProject.cs</code>
+lines 34, 57</li>
+<li><code>Features/ProposalDetails/CreateCommand/CreateProposalProductRebateAmount.cs</code>
+lines 30, 53</li>
+<li><code>Features/Sync/SamSyncService.cs</code> line 26</li>
+</ul>
+<hr />
+<h2 id="3-target-state">3. Target State</h2>
+<p><strong>Pipeline (unchanged shape, wider key):</strong></p>
+<pre class="mermaid"><code>flowchart LR
+  DW[(DW + new SoldtoCode column)]
+    --&gt; V[View_SAM_FreightSubsidy&lt;br/&gt;+CUSTOMER]
+    --&gt; SP[sp_Sync_Subsidy&lt;br/&gt;4-part MERGE key]
+    --&gt; T[(warehouse.Subsidy&lt;br/&gt;+CUSTOMER_CODE)]
+    --&gt; PP[ProposalProduct.SUBSIDY&lt;br/&gt;snapshot unchanged]
+    --&gt; UI[Approval view]</code></pre>
+<ul>
+<li>Net Freight ดึงจาก DW โดยใช้ key
+<code>Org + Customer + Material</code> (4-part composite)</li>
+<li>K. North = data owner ฝั่ง DW</li>
+<li>Snapshot semantics ใน <code>ProposalProduct</code> คงเดิม (historical
+proposal ปลอดภัย)</li>
+</ul>
+<hr />
+<h2 id="4-assumptions">4. Assumptions</h2>
+<ul>
+<li>A1: K. North สามารถเพิ่ม <code>SoldtoCode</code> ใน
+<code>View_SAM_FreightSubsidy</code> ได้ภายใน sprint</li>
+<li>A2: Customer code ใน DW (SoldtoCode) match กับ
+<code>Customer.SoldtoCode</code> ใน SAM โดยตรง ไม่ต้อง mapping table</li>
+<li>A3: Historical <code>warehouse.Subsidy</code> rows ทั้งหมดสามารถ
+backfill <code>CUSTOMER_CODE = '*'</code> (wildcard) ได้โดยไม่กระทบ
+reporting</li>
+<li>A4: Existing hourly sync window พอเพียง — ไม่ต้อง real-time</li>
+<li>A5: Snapshot semantics ปัจจุบันถูกต้องตาม business — pending proposal ไม่
+recalculate ก่อน approve</li>
+</ul>
+<hr />
+<h2 id="5-out-of-scope">5. Out of Scope</h2>
+<ul>
+<li>Recalculate / backfill historical proposals (snapshot ใน
+<code>ProposalProduct</code> ไม่เปลี่ยน)</li>
+<li>Real-time DW query (ใช้ scheduled sync เดิม)</li>
+<li>Rebate calculation logic เปลี่ยน (เฉพาะ Net Freight source เท่านั้น)</li>
+<li>SAP sync payload format เปลี่ยน</li>
+<li>Report / Export format เปลี่ยน (อาจ verify เท่านั้น)</li>
+<li>Type S / P deep refactor — verify reference เท่านั้น</li>
+</ul>
+<hr />
+<h2 id="6-dependencies">6. Dependencies</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Depends On</th>
+<th>Owner</th>
+<th>ETA</th>
+<th>Blocking?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D1</td>
+<td>DW view <code>View_SAM_FreightSubsidy</code> เพิ่ม
+<code>SoldtoCode</code> column</td>
+<td>K. North + DW team</td>
+<td>TBD</td>
+<td><strong>Yes (blocker)</strong></td>
+</tr>
+<tr>
+<td>D2</td>
+<td>DW staging environment สำหรับ SIT</td>
+<td>DW team</td>
+<td>TBD</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>D3</td>
+<td>Customer code mapping clarification (SoldtoCode vs KUNNR)</td>
+<td>K. North</td>
+<td>TBD</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>D4</td>
+<td>Linked server <code>THASDSINGDWP1.ACCDW</code> credential update
+(ถ้าจำเป็น)</td>
+<td>DBA</td>
+<td>TBD</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-impact-analysis">7. Impact Analysis</h2>
+<h3 id="71-external-systems-dw">7.1 External Systems (DW)</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>View_SAM_FreightSubsidy</code></td>
+<td>เพิ่ม column <code>SoldtoCode</code> (Customer Code)</td>
+</tr>
+<tr>
+<td>Granularity</td>
+<td><code>Period+Org+Product</code> →
+<code>Period+Org+Customer+Product</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="72-backend">7.2 Backend</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Entities/Subsidy.cs</code></td>
+<td>เพิ่ม field <code>CUSTOMER_CODE</code></td>
+</tr>
+<tr>
+<td><code>Sql/PamDB/Store-view/sp_Sync_warehouse.sql</code>
+(<code>sp_Sync_Subsidy</code>)</td>
+<td>เพิ่ม customer ใน SELECT / MERGE key / hash / index</td>
+</tr>
+<tr>
+<td>EF migration ใหม่</td>
+<td><code>AddCustomerToSubsidy</code> — column + PK + index</td>
+</tr>
+<tr>
+<td><code>Sql/PamDB/Seed-init/subsidy.sql</code></td>
+<td>update seed</td>
+</tr>
+<tr>
+<td><code>Features/ProposalDetails/CreateCommand/CreateProposalProductDiscountRebate.cs:33,55</code></td>
+<td><code>OUTER APPLY</code> เพิ่ม
+<code>s2.CUSTOMER_CODE = @SoldtoCode</code></td>
+</tr>
+<tr>
+<td><code>Features/ProposalDetails/CreateCommand/CreateProposalProductProject.cs:34,57</code></td>
+<td>เพิ่ม customer filter</td>
+</tr>
+<tr>
+<td><code>Features/ProposalDetails/CreateCommand/CreateProposalProductRebateAmount.cs:30,53</code></td>
+<td>เพิ่ม customer filter</td>
+</tr>
+<tr>
+<td><code>CreateProposalDetailCommandHandler.cs</code></td>
+<td>ส่ง <code>@SoldtoCode</code> เข้า query</td>
+</tr>
+<tr>
+<td><code>Features/Sync/SamSyncService.cs:26</code></td>
+<td>unchanged (เรียก SP เดิม)</td>
+</tr>
+<tr>
+<td>Approval read views (Sam/Sdm × Type R/S/P, 6 files)</td>
+<td>อ่าน snapshot — unchanged</td>
+</tr>
+<tr>
+<td><code>SamApp.WebApi.Tests/...</code></td>
+<td>update entity test + เพิ่ม customer lookup unit test</td>
+</tr>
+<tr>
+<td><code>docs/specs/job-sync-master-data.spec.md</code></td>
+<td>update granularity</td>
+</tr>
+</tbody>
+</table>
+<h3 id="73-frontend">7.3 Frontend</h3>
+<p>กระทบ Type R เป็นหลัก (label "Net Freight" → value
+<code>freightSubsidy</code>). มี ref ใน Type S/P → ต้อง verify.</p>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Files</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Request Type R — Rebate form/table</td>
+<td><code>RebateForm.tsx</code>, <code>RebateTableCard.tsx</code>,
+<code>RebateWrapper.tsx</code></td>
+</tr>
+<tr>
+<td>Request Type R — Summary</td>
+<td><code>SummaryWrapper.tsx</code>,
+<code>summary-rebate.mapper.tsx</code></td>
+</tr>
+<tr>
+<td>Request Type R — Schema/Mapper</td>
+<td><code>rebate.schema.ts</code>, <code>rebate.types.ts</code>,
+<code>rebate.apply.ts</code>, <code>rebate.util.ts</code>,
+<code>rebate-multipage.ts</code></td>
+</tr>
+<tr>
+<td>Approval Type R — Detail</td>
+<td><code>ViewRebateInformation.tsx</code> (label "Net Freight")</td>
+</tr>
+<tr>
+<td>Approval — Lists/Mapper/Types</td>
+<td><code>lists/all/index.tsx</code>, <code>approval.mapper.ts</code>,
+<code>rebate-info.types.ts</code>,
+<code>approval-overview-r/s/p.ts</code></td>
+</tr>
+<tr>
+<td>Constants</td>
+<td><code>rebate-columns.ts</code></td>
+</tr>
+<tr>
+<td>Shared</td>
+<td><code>components/rebate/RebateTable.tsx</code></td>
+</tr>
+<tr>
+<td>Markups (storybook)</td>
+<td><code>__markups__/R/...</code> (4 files)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>FE file count:</strong> 24 files.</p>
+<h3 id="74-database--migration">7.4 Database / Migration</h3>
+<table>
+<thead>
+<tr>
+<th>Object</th>
+<th>Change</th>
+<th>Backfill</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>warehouse.Subsidy.CUSTOMER_CODE</code></td>
+<td>New column <code>nvarchar(64) NULL</code></td>
+<td>Existing rows → <code>'*'</code> (wildcard)</td>
+</tr>
+<tr>
+<td>PK / Unique index</td>
+<td>Add <code>CUSTOMER_CODE</code> to composite key</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td><code>IX_Subsidy_Key</code></td>
+<td>New non-clustered index
+<code>(PERIOD, ORGNO, CUSTOMER_CODE, PRODUCT_CODE)</code></td>
+<td>N/A</td>
+</tr>
+</tbody>
+</table>
+<h3 id="75-operations--infra">7.5 Operations / Infra</h3>
+<ul>
+<li>Hangfire job <code>SamSyncJob</code> — schedule unchanged
+(hourly)</li>
+<li>Linked server credential — verify unchanged</li>
+<li>DW network ACL — verify customer column accessible</li>
+</ul>
+<p><strong>File count summary:</strong> BE = ~11, FE = 24, SQL/migration
+= 2.</p>
+<hr />
+<h2 id="8-risks--mitigation">8. Risks &amp; Mitigation</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Severity</th>
+<th>Mitigation</th>
+<th>Owner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1</td>
+<td>DW view ยังไม่มี Customer column</td>
+<td>High</td>
+<td>High</td>
+<td><strong>Blocker</strong></td>
+<td>ประสาน K. North / DW team ก่อนเริ่ม</td>
+<td>PM</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>Historical Subsidy data ไม่มี Customer — recalc ย้อนหลังไม่ได้</td>
+<td>High</td>
+<td>Med</td>
+<td>High</td>
+<td>Snapshot ปลอดภัย — เผยแพร่ communication ว่าข้อมูลย้อนหลังไม่เปลี่ยน</td>
+<td>BA</td>
+</tr>
+<tr>
+<td>R3</td>
+<td>Composite key เปลี่ยน → migrate <code>warehouse.Subsidy</code></td>
+<td>Med</td>
+<td>Med</td>
+<td>Med</td>
+<td>Backfill <code>CUSTOMER_CODE='*'</code> + reseed plan</td>
+<td>DBA</td>
+</tr>
+<tr>
+<td>R4</td>
+<td>Customer code mapping SAM ↔︎ DW (SoldtoCode vs KUNNR)</td>
+<td>Med</td>
+<td>High</td>
+<td>High</td>
+<td>Verify schema กับ K. North + sample compare</td>
+<td>BE</td>
+</tr>
+<tr>
+<td>R5</td>
+<td>Fallback เมื่อ Org+Cust+Prod ไม่เจอ row</td>
+<td>Med</td>
+<td>Med</td>
+<td>Med</td>
+<td>กำหนด policy ชัด (wildcard / 0 / error) — default
+<code>ISNULL(...,0)</code></td>
+<td>BE</td>
+</tr>
+<tr>
+<td>R6</td>
+<td>Performance — index ใหม่ + row count ใหญ่ขึ้น</td>
+<td>Low</td>
+<td>Med</td>
+<td>Low</td>
+<td>Bench query plan + monitor p95</td>
+<td>DBA</td>
+</tr>
+<tr>
+<td>R7</td>
+<td>DW downtime กระทบ proposal creation</td>
+<td>High</td>
+<td>High</td>
+<td><strong>High</strong></td>
+<td>Cache last-known-good + alert + fallback wildcard</td>
+<td>BE</td>
+</tr>
+<tr>
+<td>R8</td>
+<td>Audit — number เปลี่ยน user งง</td>
+<td>Med</td>
+<td>Med</td>
+<td>Med</td>
+<td>Parallel-run + comm to sales team</td>
+<td>PM</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9-proposed-solution">9. Proposed Solution</h2>
+<h3 id="approach">Approach</h3>
+<p>ใช้ infrastructure เดิม (linked server + <code>sp_Sync_Subsidy</code> +
+<code>warehouse.Subsidy</code>) — ขยาย schema เพิ่ม Customer dimension.
+ไม่สร้าง pipeline ใหม่.</p>
+<h3 id="steps">Steps</h3>
+<ol type="1">
+<li><p><strong>DW team</strong> เพิ่ม column <code>SoldtoCode</code> ใน
+<code>View_SAM_FreightSubsidy</code></p></li>
+<li><p><strong>Schema migration:</strong></p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> warehouse.Subsidy <span class="kw">ADD</span> CUSTOMER_CODE <span class="dt">nvarchar</span>(<span class="dv">64</span>) <span class="kw">NULL</span>;</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">UPDATE</span> warehouse.Subsidy <span class="kw">SET</span> CUSTOMER_CODE <span class="op">=</span> <span class="st">&#39;*&#39;</span> <span class="kw">WHERE</span> CUSTOMER_CODE <span class="kw">IS</span> <span class="kw">NULL</span>;</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> warehouse.Subsidy <span class="kw">ALTER</span> <span class="kw">COLUMN</span> CUSTOMER_CODE <span class="dt">nvarchar</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>;</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> IX_Subsidy_Key</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ON</span> warehouse.Subsidy (PERIOD, ORGNO, CUSTOMER_CODE, PRODUCT_CODE);</span></code></pre></div></li>
+<li><p><strong>Update <code>sp_Sync_Subsidy</code></strong> — เพิ่ม
+Customer ใน SELECT, MERGE key, hash</p></li>
+<li><p><strong>Update Proposal queries (3 files):</strong></p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> s2.ORGNO         <span class="op">=</span> @SaleOrgCode</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">AND</span> s2.PRODUCT_CODE  <span class="op">=</span> @ProductCode</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">AND</span> s2.CUSTOMER_CODE <span class="op">=</span> @SoldtoCode</span></code></pre></div></li>
+<li><p><strong>Fallback strategy</strong> — exact match ไม่เจอ → fallback
+<code>(Org+Product)</code> wildcard <code>CUSTOMER_CODE='*'</code> → log
+warning</p></li>
+<li><p><strong>Snapshot semantics ไม่เปลี่ยน</strong> — proposal เก่าใช้
+value ที่ save ไว้</p></li>
+<li><p><strong>Sync model</strong> — scheduled (เดิม hourly) — fast read,
+decoupled, ทน DW down</p></li>
+</ol>
+<h3 id="alternatives-considered">Alternatives considered</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Pros</th>
+<th>Cons</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Real-time DW query</td>
+<td>Fresh data</td>
+<td>DW latency + tight coupling, DW down = SAM down</td>
+<td><strong>Reject</strong></td>
+</tr>
+<tr>
+<td>New separate cache table</td>
+<td>Isolated schema</td>
+<td>Duplicate sync pipeline</td>
+<td><strong>Reject</strong></td>
+</tr>
+<tr>
+<td>Extend existing pipeline</td>
+<td>Reuse infra, minimal risk</td>
+<td>Migration required</td>
+<td><strong>Accept</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10-rollout--cutover-plan">10. Rollout / Cutover Plan</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Owner</th>
+<th>When</th>
+<th>Verify</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>DW deploy new view column</td>
+<td>DW team</td>
+<td>T-7d</td>
+<td>Schema check</td>
+</tr>
+<tr>
+<td>2</td>
+<td>DB migration on staging</td>
+<td>DBA</td>
+<td>T-5d</td>
+<td>Row count + index</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Deploy BE with feature flag off</td>
+<td>BE</td>
+<td>T-3d</td>
+<td>Smoke test</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Enable flag in staging</td>
+<td>BE</td>
+<td>T-2d</td>
+<td>Parallel-run compare</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Production migration</td>
+<td>DBA</td>
+<td>T-0 (low traffic)</td>
+<td>Backfill verify</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Enable flag in prod</td>
+<td>BE</td>
+<td>T-0</td>
+<td>Spot check 10 proposals</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Parallel-run period</td>
+<td>All</td>
+<td>T+0 to T+7d</td>
+<td>Daily reconciliation</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Disable old code path</td>
+<td>BE</td>
+<td>T+14d</td>
+<td>None — code removed next sprint</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Feature flag: <code>feat.netFreight.customerKey</code> (default off
+→ on at cutover)</li>
+<li>Parallel-run window: 7 days</li>
+<li>Cutover date / time: TBD (low-traffic window, e.g. weekend)</li>
+<li>Maintenance window: ~30 min for migration</li>
+</ul>
+<hr />
+<h2 id="11-rollback-strategy">11. Rollback Strategy</h2>
+<table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>Action</th>
+<th>Recoverable?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sync ล้มเหลวหลัง migration</td>
+<td>Disable feature flag → revert to wildcard lookup</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Data corruption ใน <code>warehouse.Subsidy</code></td>
+<td>Restore จาก pre-migration backup + re-sync</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Production query errors</td>
+<td>Toggle flag off (BE code falls back to 3-part key)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>DW view roll-back</td>
+<td>DW team revert + SAM disable flag</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>DB rollback script: <code>Sql/PamDB/Rollback/cr1-revert.sql</code>
+(TBD)</li>
+<li>Pre-migration backup: <code>warehouse.Subsidy_pre_cr1</code> table,
+retain 30 days</li>
+<li>Feature flag kill-switch: <strong>Yes</strong> — flips
+synchronously, no redeploy</li>
+</ul>
+<hr />
+<h2 id="12-monitoring--telemetry">12. Monitoring &amp; Telemetry</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Source</th>
+<th>Threshold</th>
+<th>Alert</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sp_Sync_Subsidy</code> runtime</td>
+<td>Hangfire dashboard</td>
+<td>&gt; 5 min</td>
+<td>Slack #sam-ops</td>
+</tr>
+<tr>
+<td>Sync lag (last successful sync)</td>
+<td>Custom metric</td>
+<td>&gt; 2 h</td>
+<td>Email + Slack</td>
+</tr>
+<tr>
+<td>Fallback hit rate (wildcard match)</td>
+<td>App log counter</td>
+<td>&gt; 20%</td>
+<td>Daily report</td>
+</tr>
+<tr>
+<td>Query p95 latency (Subsidy lookup)</td>
+<td>Application Insights</td>
+<td>&gt; baseline + 10%</td>
+<td>Slack</td>
+</tr>
+<tr>
+<td>Proposal create error rate</td>
+<td>App log</td>
+<td>&gt; 1%</td>
+<td>Pager</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>New dashboard: Grafana <code>sam-netfreight-cr1</code> (TBD)</li>
+<li>New alerts: Slack channel <code>#sam-cr1-monitor</code></li>
+<li>Log fields added: <code>subsidyMatchType</code> (exact / fallback /
+miss), <code>subsidyCustomerCode</code></li>
+</ul>
+<hr />
+<h2 id="13-security--compliance">13. Security / Compliance</h2>
+<ul>
+<li><strong>PII / sensitive data:</strong> Customer code (SoldtoCode) —
+already in scope of existing system, no new exposure</li>
+<li><strong>Access control change:</strong> None</li>
+<li><strong>Audit log:</strong> Existing proposal audit captures
+snapshot value — no extra requirement</li>
+<li><strong>Compliance regime:</strong> PDPA — verify customer code
+retention policy unchanged</li>
+<li><strong>Security review:</strong> Not required (no auth / authz /
+data-exposure change)</li>
+</ul>
+<hr />
+<h2 id="14-estimate">14. Estimate</h2>
+<h3 id="141-backend">14.1 Backend</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Role</th>
+<th>Effort</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Investigation DW schema + access setup</td>
+<td>BE</td>
+<td>1 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td>Design data model (staging + mapping)</td>
+<td>BE</td>
+<td>0.5 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td>EF migration + entity</td>
+<td>BE</td>
+<td>0.5 d</td>
+<td>±10%</td>
+</tr>
+<tr>
+<td>DW connection / credential</td>
+<td>DBA</td>
+<td>0.5 d</td>
+<td>±30%</td>
+</tr>
+<tr>
+<td>Update <code>sp_Sync_Subsidy</code></td>
+<td>BE / DBA</td>
+<td>1.5 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td>Hangfire job / sync verify</td>
+<td>BE</td>
+<td>0.5 d</td>
+<td>±10%</td>
+</tr>
+<tr>
+<td>Net Freight query rewrite (3 files)</td>
+<td>BE</td>
+<td>1 d</td>
+<td>±10%</td>
+</tr>
+<tr>
+<td>Fallback / cache strategy</td>
+<td>BE</td>
+<td>0.5 d</td>
+<td>±30%</td>
+</tr>
+<tr>
+<td>Unit tests</td>
+<td>BE</td>
+<td>1 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td>Integration test กับ DW staging</td>
+<td>BE</td>
+<td>1 d</td>
+<td>±30%</td>
+</tr>
+<tr>
+<td>Code review fix</td>
+<td>BE</td>
+<td>0.5 d</td>
+<td>±30%</td>
+</tr>
+<tr>
+<td>Bug fix buffer</td>
+<td>BE</td>
+<td>1 d</td>
+<td>±50%</td>
+</tr>
+<tr>
+<td><strong>BE total</strong></td>
+<td></td>
+<td><strong>~9.5 d</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="142-frontend">14.2 Frontend</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Role</th>
+<th>Effort</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Update DTO / TS types (rebate, approval-overview-r/s/p)</td>
+<td>FE</td>
+<td>0.5 d</td>
+<td>±10%</td>
+</tr>
+<tr>
+<td>Update mapper (rebate.apply, summary-rebate, approval.mapper)</td>
+<td>FE</td>
+<td>1 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td>Display — RebateTable, RebateForm, ViewRebateInformation</td>
+<td>FE</td>
+<td>1 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td>Summary view (SummaryWrapper)</td>
+<td>FE</td>
+<td>0.5 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td>Loading / error / tooltip state</td>
+<td>FE</td>
+<td>0.5 d</td>
+<td>±30%</td>
+</tr>
+<tr>
+<td>Verify Type S/P references</td>
+<td>FE</td>
+<td>0.3 d</td>
+<td>±30%</td>
+</tr>
+<tr>
+<td>Component test</td>
+<td>FE</td>
+<td>0.5 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td>Regression Type R full flow</td>
+<td>FE</td>
+<td>1 d</td>
+<td>±30%</td>
+</tr>
+<tr>
+<td>Code review fix</td>
+<td>FE</td>
+<td>0.5 d</td>
+<td>±30%</td>
+</tr>
+<tr>
+<td>Bug fix buffer</td>
+<td>FE</td>
+<td>0.7 d</td>
+<td>±50%</td>
+</tr>
+<tr>
+<td><strong>FE total</strong></td>
+<td></td>
+<td><strong>~6.5 d</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="143-code-review">14.3 Code Review</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Role</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BE PR review</td>
+<td>Tech Lead</td>
+<td>0.5 d</td>
+</tr>
+<tr>
+<td>FE PR review</td>
+<td>Tech Lead</td>
+<td>0.5 d</td>
+</tr>
+<tr>
+<td>Cross-team review (DW integration)</td>
+<td>DBA + BE</td>
+<td>0.5 d</td>
+</tr>
+<tr>
+<td><strong>Review total</strong></td>
+<td></td>
+<td><strong>~1.5 d</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="144-qa">14.4 QA</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Role</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Test plan + scenario</td>
+<td>QA</td>
+<td>1 d</td>
+</tr>
+<tr>
+<td>Test data prep (DW staging + edge)</td>
+<td>QA</td>
+<td>1 d</td>
+</tr>
+<tr>
+<td>Functional — happy path</td>
+<td>QA</td>
+<td>1 d</td>
+</tr>
+<tr>
+<td>Edge case — missing/mismatch/DW down</td>
+<td>QA</td>
+<td>1.5 d</td>
+</tr>
+<tr>
+<td>Regression — Proposal, Rebate, SAP sync, Report</td>
+<td>QA</td>
+<td>2 d</td>
+</tr>
+<tr>
+<td>Parallel run (old vs new source)</td>
+<td>QA</td>
+<td>1 d</td>
+</tr>
+<tr>
+<td>Bug retest cycles</td>
+<td>QA</td>
+<td>1.5 d</td>
+</tr>
+<tr>
+<td><strong>QA total</strong></td>
+<td></td>
+<td><strong>~9 d</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="145-sit">14.5 SIT</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Role</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SIT env setup + DW staging hookup</td>
+<td>DevOps</td>
+<td>1 d</td>
+</tr>
+<tr>
+<td>Smoke test (SAM ↔︎ DW)</td>
+<td>QA</td>
+<td>0.5 d</td>
+</tr>
+<tr>
+<td>E2E (proposal create → rebate calc → SAP sync)</td>
+<td>QA</td>
+<td>1.5 d</td>
+</tr>
+<tr>
+<td>Data reconciliation (SAM vs DW)</td>
+<td>QA / BE</td>
+<td>1 d</td>
+</tr>
+<tr>
+<td>Performance (sync latency, query response)</td>
+<td>QA / DBA</td>
+<td>0.5 d</td>
+</tr>
+<tr>
+<td>Failover (DW down → fallback)</td>
+<td>QA / BE</td>
+<td>0.5 d</td>
+</tr>
+<tr>
+<td>Bug fix support</td>
+<td>BE / FE</td>
+<td>1 d</td>
+</tr>
+<tr>
+<td>SIT sign-off + report</td>
+<td>QA Lead</td>
+<td>0.5 d</td>
+</tr>
+<tr>
+<td><strong>SIT total</strong></td>
+<td></td>
+<td><strong>~6 d</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="146-uat-support">14.6 UAT support</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Role</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UAT prep + walkthrough</td>
+<td>BA / Dev</td>
+<td>0.5 d</td>
+</tr>
+<tr>
+<td>UAT bug fix + retest</td>
+<td>Dev</td>
+<td>1 d</td>
+</tr>
+<tr>
+<td><strong>UAT total</strong></td>
+<td></td>
+<td><strong>~1.5 d</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="147-summary">14.7 Summary</h3>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BE</td>
+<td>9.5 d</td>
+</tr>
+<tr>
+<td>FE</td>
+<td>6.5 d</td>
+</tr>
+<tr>
+<td>Code Review</td>
+<td>1.5 d</td>
+</tr>
+<tr>
+<td>QA</td>
+<td>9 d</td>
+</tr>
+<tr>
+<td>SIT</td>
+<td>6 d</td>
+</tr>
+<tr>
+<td>UAT</td>
+<td>1.5 d</td>
+</tr>
+<tr>
+<td><strong>Total man-days</strong></td>
+<td><strong>~34 d</strong></td>
+</tr>
+<tr>
+<td><strong>Calendar (parallel roles)</strong></td>
+<td><strong>~5 weeks</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Blockers / preconditions:</strong> DW access + new view ready
+day 1 — else +1 week. SIT requires DW staging env — else +3 d.</p>
+</blockquote>
+<hr />
+<h2 id="15-success-metrics">15. Success Metrics</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Baseline</th>
+<th>Target</th>
+<th>Measure When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Net Freight accuracy (vs DW reconciliation)</td>
+<td>TBD (current data)</td>
+<td>100% match on exact-key rows</td>
+<td>T+7d after cutover</td>
+</tr>
+<tr>
+<td>Fallback hit rate (wildcard match)</td>
+<td>N/A</td>
+<td>&lt; 5%</td>
+<td>T+30d</td>
+</tr>
+<tr>
+<td>Sales-rep complaint count re. Net Freight</td>
+<td>TBD (baseline last 30d)</td>
+<td>&lt; baseline</td>
+<td>T+60d</td>
+</tr>
+<tr>
+<td>Sync job runtime</td>
+<td>~{TBD} s</td>
+<td>≤ baseline + 10%</td>
+<td>T+7d</td>
+</tr>
+<tr>
+<td>Proposal create error rate</td>
+<td>~{TBD}%</td>
+<td>≤ baseline</td>
+<td>T+7d</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="16-acceptance-criteria">16. Acceptance Criteria</h2>
+<h3 id="backend">Backend</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />AC-BE-1:
+<code>warehouse.Subsidy</code> has column <code>CUSTOMER_CODE</code> —
+TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-2:
+<code>sp_Sync_Subsidy</code> MERGE uses 4-part key
+(Period+Org+Customer+Product) — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-3: Proposal create (Type
+R/S/P) retrieves Subsidy by customer correctly — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-4: Fallback behaviour
+deterministic (wildcard / zero / error per policy) — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-5: Unit test covers exact
+match + fallback + null — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-6: Integration test passes
+against DW staging view — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-7: Historical proposal
+snapshot in <code>ProposalProduct</code> unchanged — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-8: Query response &lt;
+baseline + 10% — TC-TBD</label></li>
+</ul>
+<h3 id="frontend">Frontend</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />AC-FE-1: Label "Net Freight"
+displays value from new source on proposal page — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-FE-2: Type R Rebate flow complete
+(form → summary → approval view) — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-FE-3: Type S/P verified (used /
+not used decision documented) — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-FE-4: Loading / error / fallback
+state handles DW down — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-FE-5: Component tests +
+regression Type R pass — TC-TBD</label></li>
+</ul>
+<h3 id="data--migration">Data / Migration</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />AC-DATA-1: All existing
+<code>warehouse.Subsidy</code> rows backfilled with
+<code>CUSTOMER_CODE='*'</code> — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-DATA-2: Index
+<code>IX_Subsidy_Key</code> created — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-DATA-3: Rollback script tested on
+staging — TC-TBD</label></li>
+</ul>
+<hr />
+<h2 id="17-open-questions">17. Open Questions</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Category</th>
+<th>Question</th>
+<th>Owner</th>
+<th>Due</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q1</td>
+<td>Data</td>
+<td>DW view ใหม่ ETA จาก K. North = ?</td>
+<td>K. North</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q2</td>
+<td>Data</td>
+<td>Customer code ใน DW = <code>SoldtoCode</code> หรือ <code>KUNNR</code>
+(SAP)? Match กับ <code>Customer.SoldtoCode</code> ใน SAM ไหม</td>
+<td>K. North</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q3</td>
+<td>Data</td>
+<td>มี doc / schema ของ view ที่ verify ไหม</td>
+<td>K. North</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q4</td>
+<td>Data</td>
+<td>Refresh frequency ใน DW เอง = ?</td>
+<td>DW team</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q5</td>
+<td>Business</td>
+<td>Fallback policy: exact (Org+Cust+Prod) ไม่เจอ → wildcard / zero /
+fail ?</td>
+<td>BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q6</td>
+<td>Business</td>
+<td>Historical row เก่าใน <code>warehouse.Subsidy</code> → set
+<code>CUSTOMER_CODE='*'</code> หรือ delete + reseed ?</td>
+<td>BA / DBA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q7</td>
+<td>Business</td>
+<td>SUBSIDY ใน ProposalProduct ของ pending proposal — recalculate ก่อน
+approve ไหม ?</td>
+<td>BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q8</td>
+<td>Business</td>
+<td>Cutover date = วันไหน</td>
+<td>PM</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q9</td>
+<td>Business</td>
+<td>Parallel run period ต้องการนานแค่ไหน</td>
+<td>BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q10</td>
+<td>Business</td>
+<td>กระทบ Rebate calculation ด้วยไหม</td>
+<td>BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q11</td>
+<td>Business</td>
+<td>SAP sync payload เปลี่ยนไหม</td>
+<td>BE</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q12</td>
+<td>Ops</td>
+<td>DW down → SAM behavior ? (block / cached / continue with
+warning)</td>
+<td>BE / Ops</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q13</td>
+<td>Ops</td>
+<td>Alert channel ถ้า sync ล้มเหลว</td>
+<td>Ops</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q14</td>
+<td>Ops</td>
+<td>Production cutover — pause sync, migrate, resume — downtime
+tolerance ?</td>
+<td>Ops</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q15</td>
+<td>UX</td>
+<td>Label เดิม "Net Freight" หรือเปลี่ยน "Net Freight
+(Org+Cust+Material)"</td>
+<td>UX / BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q16</td>
+<td>UX</td>
+<td>Tooltip แสดง source = DW + last sync time ไหม</td>
+<td>UX</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q17</td>
+<td>UX</td>
+<td>Drilldown ต่อ Customer ไหม</td>
+<td>UX</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q18</td>
+<td>UX</td>
+<td>Customer ยังไม่เลือก → ฟิลด์แสดงอะไร</td>
+<td>UX</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q19</td>
+<td>UX</td>
+<td>User เปลี่ยน customer → refresh Net Freight อัตโนมัติไหม</td>
+<td>UX / FE</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q20</td>
+<td>UX</td>
+<td>DW down → FE แจ้ง user หรือเงียบ</td>
+<td>UX / FE</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q21</td>
+<td>UX</td>
+<td>User override ค่าได้ไหม</td>
+<td>BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q22</td>
+<td>UX</td>
+<td>Type S/P ใช้ Net Freight ไหม (verify)</td>
+<td>FE</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q23</td>
+<td>UX</td>
+<td>Subsidy = 0 (no match) → block submit หรือ warning</td>
+<td>BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q24</td>
+<td>UX</td>
+<td>Permission — role ไหนเห็นบ้าง (srp/sam/sdm/pte/fin/cdr)</td>
+<td>BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q25</td>
+<td>UX</td>
+<td>Localization — TH translation + tooltip wording</td>
+<td>UX</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q26</td>
+<td>UX</td>
+<td>Report / Export — กระทบไหม</td>
+<td>BA</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>Q27</td>
+<td>UX</td>
+<td>Markups (storybook) update ตาม design ใหม่ไหม</td>
+<td>UX</td>
+<td>TBD</td>
+<td>Open</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="18-sign-off">18. Sign-off</h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Name</th>
+<th>Decision</th>
+<th>Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Business Owner</td>
+<td>TBD</td>
+<td>Pending</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Tech Lead</td>
+<td>TBD</td>
+<td>Pending</td>
+<td>—</td>
+</tr>
+<tr>
+<td>QA Lead</td>
+<td>TBD</td>
+<td>Pending</td>
+<td>—</td>
+</tr>
+<tr>
+<td>PM</td>
+<td>TBD</td>
+<td>Pending</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Data Owner (DW)</td>
+<td>K. North</td>
+<td>Pending</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="19-references">19. References</h2>
+<ul>
+<li>Jira / ticket: TBD</li>
+<li>Confluence: TBD</li>
+<li>Figma / design: TBD</li>
+<li>Related PR(s): TBD</li>
+<li>DW / external doc: TBD</li>
+<li>Original HTML draft: <code>docs/CR1-net-freight.html</code></li>
+<li>Template source: <code>docs/templates/CR-template.md</code></li>
+</ul>
+<hr />
+<h2 id="20-glossary">20. Glossary</h2>
+<table>
+<thead>
+<tr>
+<th>Term (EN)</th>
+<th>Term (TH)</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Net Freight</td>
+<td>ค่าขนส่งสุทธิ</td>
+<td>ค่าขนส่งที่หักส่วนชดเชย — แสดงในหน้า approval / proposal</td>
+</tr>
+<tr>
+<td>Freight Subsidy</td>
+<td>ส่วนชดเชยค่าขนส่ง</td>
+<td>ส่วนชดเชยที่บริษัทช่วยจ่ายให้ลูกค้า</td>
+</tr>
+<tr>
+<td>SUBSIDY</td>
+<td>—</td>
+<td>Column ใน <code>ProposalProduct</code> ที่ snapshot ค่า subsidy ตอน
+create</td>
+</tr>
+<tr>
+<td>DW</td>
+<td>Data Warehouse</td>
+<td>Linked server <code>THASDSINGDWP1.ACCDW</code></td>
+</tr>
+<tr>
+<td>SoldtoCode</td>
+<td>รหัสลูกค้า (Sold-to)</td>
+<td>รหัส customer ใน SAM, match กับ DW</td>
+</tr>
+<tr>
+<td>KUNNR</td>
+<td>—</td>
+<td>SAP customer code (อาจต่างจาก SoldtoCode)</td>
+</tr>
+<tr>
+<td>MERGE key</td>
+<td>—</td>
+<td>Composite key ที่ใช้ใน SQL MERGE statement สำหรับ upsert</td>
+</tr>
+<tr>
+<td>Snapshot</td>
+<td>—</td>
+<td>ค่าที่ copy เข้า ProposalProduct ตอน create — ไม่เปลี่ยนตามเวลา</td>
+</tr>
+<tr>
+<td>Org</td>
+<td>Sales Organisation</td>
+<td>รหัสองค์การขาย (ORGNO)</td>
+</tr>
+</tbody>
+</table>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+  // pandoc wraps fenced code as <pre class="mermaid"><code>...</code></pre>
+  // mermaid.js expects raw text inside <pre.mermaid> — unwrap <code>.
+  document.querySelectorAll('pre.mermaid > code').forEach(code => {
+    code.parentElement.textContent = code.textContent;
+  });
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: isDark ? 'dark' : 'default',
+    securityLevel: 'loose'
+  });
+</script>
+<style>
+  pre.mermaid { background: transparent; border: none; padding: 0; text-align: center; }
+  pre.mermaid > code { background: transparent; color: inherit; }
+</style>
+</body>
+</html>

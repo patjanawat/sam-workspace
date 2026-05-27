@@ -1,0 +1,21 @@
+1. Freight Subsidy/ Net freight Correction
+ㆍChange the source of Net Freight data (the calculation should base on Org/ Customer / Material -K. North already verified data in DW)
+2. Project Proposal Management
+ㆍRequest to allow users to clone, modify, or terminate proposals/projects older than one month.
+ㆍCurrent system limitation only allows actions for the current and previous month.
+3. Customer Segment in General Information Page
+ㆍ Request to add Customer Segment to the General Information page.
+4. Special Accumulated rebate THB/ton
+ㆍ Add another accumulate rebate (Baht/ton) in the proposal
+5. Customer Segment - Mass Upload for Discounts
+ㆍ Due to concerms regarding accuracy and human error during discount changes, request to enable mass upload functionality for discounts (across products/overall discounts).
+ㆍ Upload activity to be managed by Sales Admin.
+6. Tier Calculation Logic
+o Request to change tier calculation logic from"Last Step" to "Max Step", including previous month data.
+7. Price Ex-work Display
+ㆍRequest to display Price Ex-work calculation (Price List - Total Discount and Rebate)
+at the bottom of the proposal creation page for Sales Representatives and ASMs.
+8. Cancel Pricing Team in the approval flow
+ㆍ Request to remove the Pricing Team from the approval flow, or alternatively allow delegation so the Pricing approval step can be skipped , requested MDS
+9. Proposal Status Visibility
+ㆍ Request to display Proposal Status in the Request Summary view for Sales Representatives and ASMs.

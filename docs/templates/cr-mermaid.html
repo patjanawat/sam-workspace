@@ -1,0 +1,20 @@
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+  // pandoc wraps fenced code as <pre class="mermaid"><code>...</code></pre>
+  // mermaid.js expects raw text inside <pre.mermaid> — unwrap <code>.
+  document.querySelectorAll('pre.mermaid > code').forEach(code => {
+    code.parentElement.textContent = code.textContent;
+  });
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: isDark ? 'dark' : 'default',
+    securityLevel: 'loose'
+  });
+</script>
+<style>
+  pre.mermaid { background: transparent; border: none; padding: 0; text-align: center; }
+  pre.mermaid > code { background: transparent; color: inherit; }
+</style>
