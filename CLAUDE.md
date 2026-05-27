@@ -160,6 +160,25 @@ git -C web push
 
 ---
 
+## Feature Docs
+
+Detailed docs per feature — read before working on a specific area. Docs describe endpoints, files, hooks, and business rules/gotchas not obvious from code.
+
+| Doc | Feature |
+|-----|---------|
+| [`.claude/docs/features/proposal.md`](.claude/docs/features/proposal.md) | Proposal / Request — create, general info, rebate types, submit |
+| [`.claude/docs/features/approval.md`](.claude/docs/features/approval.md) | Approval workflow — SAM/SDM tracks, bulk approve, delegate settings |
+| [`.claude/docs/features/customer-group.md`](.claude/docs/features/customer-group.md) | Customer Group & Relation — group types, overlap detection |
+| [`.claude/docs/features/rebate.md`](.claude/docs/features/rebate.md) | Month-end Rebate — Agreement, Accrued Sum, 4-step workflow |
+| [`.claude/docs/features/sap-sync.md`](.claude/docs/features/sap-sync.md) | SAP Sync — auto-sync, re-sync page, success indicators |
+| [`.claude/docs/features/user-settings.md`](.claude/docs/features/user-settings.md) | User Management — CRUD, roles, delegate, password policy |
+| [`.claude/docs/features/auth.md`](.claude/docs/features/auth.md) | Auth — login flow, JWT, cookies, middleware, proxy pattern |
+| [`.claude/docs/gotchas.md`](.claude/docs/gotchas.md) | **Cross-cutting gotchas** — read this first for any task |
+
+> **Selective loading**: load only the relevant feature doc for your task — don't load all of them at once.
+
+---
+
 ## Key Paths
 
 ### Backend (`web/web/backend/SamApp.WebApi/`)
