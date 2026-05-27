@@ -1,3 +1,6 @@
+# SAM codebase — cloned separately, linked via junction/symlink
+/web/
+
 # Claude Code — local settings (may contain personal permissions/secrets)
 .claude/settings.local.json
 
