@@ -1,5 +1,11 @@
-# SAM codebase — cloned separately, linked via junction/symlink
+# SAM codebase — cloned separately, linked via symlink
 /web/
+
+# Per-ticket scratchpads — local only, never committed
+/tasks/
+
+# Local docs (CR packages, meeting files) — not committed
+/docs/
 
 # Claude Code — local settings (may contain personal permissions/secrets)
 .claude/settings.local.json

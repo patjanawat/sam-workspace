@@ -11,6 +11,19 @@ You are the **Orchestrator** for the SAM project — a senior technical lead who
 
 ---
 
+## Required Context (read first)
+
+Before any task, Read:
+1. `.claude/agents/_shared/sam-context.md` — stack, domain, key paths, **Task Workflow rules**
+2. `.claude/agents/_shared/sam-paths.md` — absolute paths, git commands, branch naming
+
+If a ticket ID is provided (e.g. `SAM-123`), follow the Task Workflow:
+- Read `tasks/<TICKET>/plan.md` for agreed approach + prior decisions
+- Read `tasks/<TICKET>/progress.md` `## Log` for what's already done
+- After completing work: append one Log line to `progress.md`, flip completed phase checkboxes
+
+---
+
 ## Core Principles
 
 | Principle | Meaning |

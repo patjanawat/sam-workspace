@@ -6,8 +6,10 @@ This is the **SAM Workspace** — a meta-repository that bundles the SAM platfor
 
 | Path | Purpose |
 |---|---|
-| `web/` | SAM platform codebase (submodule — Bitbucket: `manaosoftware/sam`) |
+| `web/` | SAM platform codebase (symlink → `d:\2025\ManaoSoftware\sam\`) |
 | `.claude/agents/` | Agent definitions |
+| `.claude/agents/_shared/` | Shared context files — stack, conventions, paths, BA context |
+| `tasks/<SAM-XXXX>/` | Per-ticket scratchpads (gitignored) — plan.md + progress.md |
 
 ---
 
@@ -125,11 +127,15 @@ git -C web push
 
 | Agent | When to use |
 |---|---|
+| `ba-expert` | Draft tickets, scaffold tasks/<TICKET>/, validate/split stories — upstream of orchestrator |
 | `orchestrator` | Complex multi-step tasks spanning BE + FE |
 | `dotnet-developer` | Creating or modifying BE — endpoints, EF, Hangfire |
 | `frontend-developer` | Creating or modifying FE — pages, components, API calls |
 | `tester` | Verify bug fix or new feature — writes xUnit tests + scenarios |
 | `code-reviewer` | Reviewing code before committing |
+| `expert-viewer` | Deep read-only investigation — root cause, "why does X work this way" |
+
+See `.claude/agents/AGENT_TRIGGERS.md` for routing rules and trigger keywords.
 
 ---
 
@@ -139,12 +145,16 @@ git -C web push
 - **Always create a new branch before making any code changes** — never work directly on `develop` or `master`
 - **Never make any code change without explicit user confirmation** — present the plan, wait for "yes" or "confirm", then proceed
 - **Never commit or push without explicit user confirmation**
-- **NEVER modify any files inside the `web/` submodule** — do NOT edit any FE or BE source files under `web/` (including `web/web/backend/` and `web/web/frontend/`) unless explicitly instructed
-- `web/` is a git submodule — always use `git -C web` for git operations inside it
+- **NEVER modify any files inside `web/`** — do NOT edit any FE or BE source files under `web/` (including `web/web/backend/` and `web/web/frontend/`) unless explicitly instructed
+- `web/` is a symlink — always use `git -C web` for git operations inside the SAM repo
 
 ### Workflow for Every Task
 
-1. **Summarize the plan** — describe what will change, which files, any risks — wait for confirmation
+Each ticket has a scratchpad folder at `tasks/<TICKET>/` (gitignored) containing `plan.md` (plan & evolving summary) and `progress.md` (phased checklist + log). They live in the **workspace**, not in `web/`.
+
+> **Auto-invoke ba-expert FIRST:** Any user prompt that references a ticket folder (`tasks/<SAM-XXXX>/`) or a `SAM-NNNN` identifier — including verbs like *analysis / analyze / find solution / วิเคราะห์ / หา solution / อ่าน / เปิด* — MUST invoke the `ba-expert` agent first to scaffold or refresh `tasks/<TICKET>/plan.md` + `progress.md`. No investigation, `expert-viewer` call, code reading, or implementation may start until ba-expert finishes and the user confirms the plan.
+
+1. **Summarize the plan** — describe what will change, which files, any risks — save to `tasks/<TICKET>/plan.md` and seed `tasks/<TICKET>/progress.md` — wait for confirmation before writing any code
 2. **Create branch** — `git -C web checkout -b <type>/SAM-XXX-description`
 
    Branch naming:
@@ -153,10 +163,11 @@ git -C web push
    bugfix/SAM-456-short-description
    hotfix/SAM-789-short-description
    chore/short-description
+   refactor/short-description
    ```
-3. **Implement** — delegate to specialist agents
+3. **Implement** — delegate to specialist agents — update `progress.md` Log with each meaningful state change
 4. **Summarize what was done** — list files changed — wait for confirmation
-5. **Commit & push** — only after explicit user confirmation
+5. **Commit & push** — only after explicit user confirmation — append commit hash + push status to `progress.md` Log
 
 ---
 
