@@ -134,6 +134,7 @@ git -C web push
 | `tester` | Verify bug fix or new feature — writes xUnit tests + scenarios |
 | `code-reviewer` | Reviewing code before committing |
 | `expert-viewer` | Deep read-only investigation — root cause, "why does X work this way" |
+| `cr-analyst` | Change Request impact analysis — produce/reconcile/audit `docs/CR<N>/`. Owns CR docs; never touches `web/`, never commits |
 
 See `.claude/agents/AGENT_TRIGGERS.md` for routing rules and trigger keywords.
 
@@ -187,6 +188,21 @@ Detailed docs per feature — read before working on a specific area. Docs descr
 | [`.claude/docs/gotchas.md`](.claude/docs/gotchas.md) | **Cross-cutting gotchas** — read this first for any task |
 
 > **Selective loading**: load only the relevant feature doc for your task — don't load all of them at once.
+
+---
+
+## CR Docs Convention
+
+ทุก Change Request ต้องมีเอกสารหลัก **`docs/CR<N>/impact-analysis.md`** ตาม template [`docs/_templates/impact-analysis.md`](docs/_templates/impact-analysis.md)
+
+> **เจ้าของ artifact = agent `cr-analyst`** — ทุกงาน CR (สร้าง / reconcile spec↔impact / audit drift) route ไปที่ cr-analyst (ไม่ใช่ ba-expert ซึ่งคุม `tasks/<TICKET>/`). cr-analyst ห้ามแตะ `web/` ห้าม commit.
+
+- โครงบังคับ: Sources → Change summary → **Key/Grain** → Discovery → **Decisions (supersedes spec §)** → Backend Impact → Frontend Impact → Constraints → Risk/Blocker → Effort Estimate → Action Items
+- ทุก decision ต้อง propagate ครบทุก section ที่ override (ไม่ใช่แค่ section หลัก) + ทุก constraint ใหม่ต้องมี Effort row + AC คู่
+- ทุก claim ต้องมี code anchor `file:line` ที่ verify จาก codebase จริง (เปิดไฟล์ ไม่เดา) — verify **behavior ของ code เดิม** ด้วย ไม่ใช่แค่ anchor มีจริง · ไฟล์ใหม่ mark "(ใหม่)"
+- Impact table ทุกแถวมี Severity **H/M/L** — FE ต้องครอบถึง types, Zod schema, i18n, MSW ไม่ใช่แค่ component หลัก
+- Estimate granular 0.3–0.5 d ต่อ task และต้องมีแถว tests, **Code review + QA + UAT**, Buffer เสมอ
+- ไฟล์ประกอบ (meeting summary, mockup, transcript, draft) อยู่ใน `docs/CR<N>/` ได้ แต่ผลวิเคราะห์สุดท้ายต้อง consolidate ลง `impact-analysis.md` เสมอ — อ้างอิงตัวอย่าง: [`docs/CR7-rebate-summary/impact-analysis.md`](docs/CR7-rebate-summary/impact-analysis.md), [`docs/CR6/impact-analysis.md`](docs/CR6/impact-analysis.md)
 
 ---
 

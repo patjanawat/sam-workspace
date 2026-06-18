@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>CR#1 - Freight Subsidy / Net Freight Correction</title>
+  <title>CR#1 - Net Freight per Customer</title>
   <style>
     /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -89,11 +89,11 @@
     code span.vs { color: #4070a0; } /* VerbatimString */
     code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="templates/cr-style.css" />
+  <link rel="stylesheet" href="../templates/cr-style.css" />
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">CR#1 - Freight Subsidy / Net Freight Correction</h1>
+<h1 class="title">CR#1 - Net Freight per Customer</h1>
 </header>
 <nav id="TOC" role="doc-toc">
 <ul>
@@ -314,8 +314,9 @@ proposal ปลอดภัย)</li>
 <li>A2: Customer code ใน DW (SoldtoCode) match กับ
 <code>Customer.SoldtoCode</code> ใน SAM โดยตรง ไม่ต้อง mapping table</li>
 <li>A3: Historical <code>warehouse.Subsidy</code> rows ทั้งหมดสามารถ
-backfill <code>CUSTOMER_CODE = '*'</code> (wildcard) ได้โดยไม่กระทบ
-reporting</li>
+backfill <code>CUSTOMER_CODE = '*'</code> ได้โดยไม่กระทบ reporting — ⚠️
+แต่ภายใต้ no-wildcard match policy row <code>'*'</code> จะไม่ถูก lookup จับ
+(dead row) → ดู Action Item #6 (reseed vs historical-only)</li>
 <li>A4: Existing hourly sync window พอเพียง — ไม่ต้อง real-time</li>
 <li>A5: Snapshot semantics ปัจจุบันถูกต้องตาม business — pending proposal ไม่
 recalculate ก่อน approve</li>
@@ -601,12 +602,13 @@ recalculate ก่อน approve</li>
 </tr>
 <tr>
 <td>R5</td>
-<td>Fallback เมื่อ Org+Cust+Prod ไม่เจอ row</td>
+<td>Match 0 / &gt;1 row policy</td>
 <td>Med</td>
 <td>Med</td>
 <td>Med</td>
-<td>กำหนด policy ชัด (wildcard / 0 / error) — default
-<code>ISNULL(...,0)</code></td>
+<td><strong>Decided</strong>: 0→<code>SUBSIDY=0</code>, &gt;1→error
+block create. ลบ wildcard fallback. ลบ <code>TOP(1)</code> ใน query
+เดิม</td>
 <td>BE</td>
 </tr>
 <tr>
@@ -624,7 +626,10 @@ recalculate ก่อน approve</li>
 <td>High</td>
 <td>High</td>
 <td><strong>High</strong></td>
-<td>Cache last-known-good + alert + fallback wildcard</td>
+<td>Sync เป็น scheduled (decoupled) → อ่านจาก
+<code>warehouse.Subsidy</code> ที่ sync ไว้แล้ว ไม่ query DW ตรง. DW down
+กระทบแค่ sync รอบถัดไป ไม่ block create. Behavior เมื่อ stale → Q12
+(block/cached/warn)</td>
 <td>BE</td>
 </tr>
 <tr>
@@ -635,6 +640,17 @@ recalculate ก่อน approve</li>
 <td>Med</td>
 <td>Parallel-run + comm to sales team</td>
 <td>PM</td>
+</tr>
+<tr>
+<td>R9</td>
+<td>Sustaina group มี &gt;1 customer → 4-part lookup เจอ &gt;1 row →
+error</td>
+<td>Med</td>
+<td>High</td>
+<td><strong>High</strong></td>
+<td>Validation guard FE form + BE command validator บังคับ group 1:1 ก่อน
+create</td>
+<td>BE/FE</td>
 </tr>
 </tbody>
 </table>
@@ -662,9 +678,21 @@ Customer ใน SELECT, MERGE key, hash</p></li>
 class="sourceCode sql"><code class="sourceCode sql"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> s2.ORGNO         <span class="op">=</span> @SaleOrgCode</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">AND</span> s2.PRODUCT_CODE  <span class="op">=</span> @ProductCode</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">AND</span> s2.CUSTOMER_CODE <span class="op">=</span> @SoldtoCode</span></code></pre></div></li>
-<li><p><strong>Fallback strategy</strong> — exact match ไม่เจอ → fallback
-<code>(Org+Product)</code> wildcard <code>CUSTOMER_CODE='*'</code> → log
-warning</p></li>
+<li><p><strong>Match policy (decided — meeting 2026-05-22)</strong> —
+exact 4-part match (<code>Period+Org+Customer+Product</code>):</p>
+<ul>
+<li>เจอ <strong>1 row</strong> → ใช้ค่านั้น</li>
+<li>เจอ <strong>0 row</strong> → <code>SUBSIDY = 0</code></li>
+<li>เจอ <strong>&gt;1 row</strong> → <strong>error → block proposal
+create</strong> (ห้าม silent-pick)</li>
+<li><strong>ไม่มี wildcard <code>CUSTOMER_CODE='*'</code>
+fallback</strong> (ยกเลิกจาก draft เดิม)</li>
+<li>⚠️ lookup เดิมใช้
+<code>OUTER APPLY (SELECT TOP(1) ... ORDER BY PERIOD DESC)</code> —
+silently เลือก row ล่าสุดเมื่อเจอหลาย row. ต้อง <strong>ลบ
+<code>TOP(1)</code></strong> + เพิ่ม count guard เพื่อ raise error เมื่อ
+&gt;1</li>
+</ul></li>
 <li><p><strong>Snapshot semantics ไม่เปลี่ยน</strong> — proposal เก่าใช้
 value ที่ save ไว้</p></li>
 <li><p><strong>Sync model</strong> — scheduled (เดิม hourly) — fast read,
@@ -792,7 +820,8 @@ decoupled, ทน DW down</p></li>
 <tbody>
 <tr>
 <td>Sync ล้มเหลวหลัง migration</td>
-<td>Disable feature flag → revert to wildcard lookup</td>
+<td>Disable feature flag → revert to old 3-part lookup
+(Org+Product)</td>
 <td>Yes</td>
 </tr>
 <tr>
@@ -845,10 +874,16 @@ synchronously, no redeploy</li>
 <td>Email + Slack</td>
 </tr>
 <tr>
-<td>Fallback hit rate (wildcard match)</td>
+<td>Match-0 rate (no customer match → SUBSIDY=0)</td>
 <td>App log counter</td>
 <td>&gt; 20%</td>
 <td>Daily report</td>
+</tr>
+<tr>
+<td>Match-&gt;1 error rate (blocked create)</td>
+<td>App log counter</td>
+<td>&gt; 0</td>
+<td>Slack #sam-ops</td>
 </tr>
 <tr>
 <td>Query p95 latency (Subsidy lookup)</td>
@@ -867,8 +902,8 @@ synchronously, no redeploy</li>
 <ul>
 <li>New dashboard: Grafana <code>sam-netfreight-cr1</code> (TBD)</li>
 <li>New alerts: Slack channel <code>#sam-cr1-monitor</code></li>
-<li>Log fields added: <code>subsidyMatchType</code> (exact / fallback /
-miss), <code>subsidyCustomerCode</code></li>
+<li>Log fields added: <code>subsidyMatchType</code> (exact / zero /
+multi-error), <code>subsidyCustomerCode</code></li>
 </ul>
 <hr />
 <h2 id="13-security--compliance">13. Security / Compliance</h2>
@@ -897,16 +932,17 @@ data-exposure change)</li>
 </thead>
 <tbody>
 <tr>
-<td>Investigation DW schema + access setup</td>
+<td><del>Investigation DW schema + access setup</del> — Nott view done
+(meeting 2026-05-22)</td>
 <td>BE</td>
-<td>1 d</td>
-<td>±20%</td>
+<td><del>1 d</del> 0 d</td>
+<td>—</td>
 </tr>
 <tr>
-<td>Design data model (staging + mapping)</td>
+<td><del>Design data model (staging + mapping)</del> — view done</td>
 <td>BE</td>
-<td>0.5 d</td>
-<td>±20%</td>
+<td><del>0.5 d</del> 0 d</td>
+<td>—</td>
 </tr>
 <tr>
 <td>EF migration + entity</td>
@@ -915,13 +951,14 @@ data-exposure change)</li>
 <td>±10%</td>
 </tr>
 <tr>
-<td>DW connection / credential</td>
+<td><del>DW connection / credential</del> — view ref swap,
+no-impact</td>
 <td>DBA</td>
-<td>0.5 d</td>
-<td>±30%</td>
+<td><del>0.5 d</del> 0 d</td>
+<td>—</td>
 </tr>
 <tr>
-<td>Update <code>sp_Sync_Subsidy</code></td>
+<td>Update <code>sp_Sync_Subsidy</code> (4-part MERGE)</td>
 <td>BE / DBA</td>
 <td>1.5 d</td>
 <td>±20%</td>
@@ -933,13 +970,20 @@ data-exposure change)</li>
 <td>±10%</td>
 </tr>
 <tr>
-<td>Net Freight query rewrite (3 files)</td>
+<td>Net Freight query rewrite (3 files) — +remove <code>TOP(1)</code>,
+count guard, &gt;1→error</td>
 <td>BE</td>
-<td>1 d</td>
-<td>±10%</td>
+<td>1.5 d</td>
+<td>±20%</td>
 </tr>
 <tr>
-<td>Fallback / cache strategy</td>
+<td>Match policy (0→0, &gt;1→error) — no wildcard fallback</td>
+<td>BE</td>
+<td>0.5 d</td>
+<td>±20%</td>
+</tr>
+<tr>
+<td><strong>Sustaina group 1:1 validator (new scope)</strong></td>
 <td>BE</td>
 <td>0.5 d</td>
 <td>±30%</td>
@@ -971,11 +1015,17 @@ data-exposure change)</li>
 <tr>
 <td><strong>BE total</strong></td>
 <td></td>
-<td><strong>~9.5 d</strong></td>
+<td><strong>~8.5 d</strong></td>
 <td></td>
 </tr>
 </tbody>
 </table>
+<blockquote>
+<p><strong>Net vs draft:</strong> −2 d (Nott view done) + 1 d
+(&gt;1→error guard + sustaina 1:1, new scope) → BE 9.5 → <strong>8.5
+d</strong>. การ "−2d" จาก view ถูก offset เกือบหมดด้วย scope ใหม่
+(match-policy + sustaina guard) ที่ draft เดิมไม่ได้นับ.</p>
+</blockquote>
 <h3 id="142-frontend">14.2 Frontend</h3>
 <table>
 <thead>
@@ -1024,6 +1074,13 @@ data-exposure change)</li>
 <td>±30%</td>
 </tr>
 <tr>
+<td><strong>Sustaina group 1:1 guard (form validation, new
+scope)</strong></td>
+<td>FE</td>
+<td>0.5 d</td>
+<td>±30%</td>
+</tr>
+<tr>
 <td>Component test</td>
 <td>FE</td>
 <td>0.5 d</td>
@@ -1050,7 +1107,7 @@ data-exposure change)</li>
 <tr>
 <td><strong>FE total</strong></td>
 <td></td>
-<td><strong>~6.5 d</strong></td>
+<td><strong>~7 d</strong></td>
 <td></td>
 </tr>
 </tbody>
@@ -1118,6 +1175,11 @@ data-exposure change)</li>
 <td>1.5 d</td>
 </tr>
 <tr>
+<td>Edge case — sustaina-group &gt;1 customer → error (new scope)</td>
+<td>QA</td>
+<td>0.5 d</td>
+</tr>
+<tr>
 <td>Regression — Proposal, Rebate, SAP sync, Report</td>
 <td>QA</td>
 <td>2 d</td>
@@ -1135,7 +1197,7 @@ data-exposure change)</li>
 <tr>
 <td><strong>QA total</strong></td>
 <td></td>
-<td><strong>~9 d</strong></td>
+<td><strong>~9.5 d</strong></td>
 </tr>
 </tbody>
 </table>
@@ -1234,11 +1296,11 @@ data-exposure change)</li>
 <tbody>
 <tr>
 <td>BE</td>
-<td>9.5 d</td>
+<td>8.5 d</td>
 </tr>
 <tr>
 <td>FE</td>
-<td>6.5 d</td>
+<td>7 d</td>
 </tr>
 <tr>
 <td>Code Review</td>
@@ -1246,7 +1308,7 @@ data-exposure change)</li>
 </tr>
 <tr>
 <td>QA</td>
-<td>9 d</td>
+<td>9.5 d</td>
 </tr>
 <tr>
 <td>SIT</td>
@@ -1266,6 +1328,11 @@ data-exposure change)</li>
 </tr>
 </tbody>
 </table>
+<blockquote>
+<p><strong>หมายเหตุ:</strong> total ~34d เท่าเดิมแม้ Nott view เสร็จ — เพราะ
+saving −2d ฝั่ง BE ถูก offset ด้วย scope ใหม่ (&gt;1→error guard, sustaina
+1:1 validator FE+BE+QA) ที่ draft แรกไม่ได้นับ.</p>
+</blockquote>
 <blockquote>
 <p><strong>Blockers / preconditions:</strong> DW access + new view ready
 day 1 — else +1 week. SIT requires DW staging env — else +3 d.</p>
@@ -1289,7 +1356,7 @@ day 1 — else +1 week. SIT requires DW staging env — else +3 d.</p>
 <td>T+7d after cutover</td>
 </tr>
 <tr>
-<td>Fallback hit rate (wildcard match)</td>
+<td>Match-0 rate (no customer match → SUBSIDY=0)</td>
 <td>N/A</td>
 <td>&lt; 5%</td>
 <td>T+30d</td>
@@ -1326,16 +1393,20 @@ TC-TBD</label></li>
 (Period+Org+Customer+Product) — TC-TBD</label></li>
 <li><label><input type="checkbox" />AC-BE-3: Proposal create (Type
 R/S/P) retrieves Subsidy by customer correctly — TC-TBD</label></li>
-<li><label><input type="checkbox" />AC-BE-4: Fallback behaviour
-deterministic (wildcard / zero / error per policy) — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-4: Match policy deterministic
+— 0 row→<code>SUBSIDY=0</code>, &gt;1 row→error (block create), no
+wildcard fallback — TC-TBD</label></li>
 <li><label><input type="checkbox" />AC-BE-5: Unit test covers exact
-match + fallback + null — TC-TBD</label></li>
+match + 0-match(=0) + &gt;1-match(error) — TC-TBD</label></li>
 <li><label><input type="checkbox" />AC-BE-6: Integration test passes
 against DW staging view — TC-TBD</label></li>
 <li><label><input type="checkbox" />AC-BE-7: Historical proposal
 snapshot in <code>ProposalProduct</code> unchanged — TC-TBD</label></li>
 <li><label><input type="checkbox" />AC-BE-8: Query response &lt;
 baseline + 10% — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-BE-9: Sustaina group &gt;1
+customer → create blocked with validation error (group must be 1:1) —
+TC-TBD</label></li>
 </ul>
 <h3 id="frontend">Frontend</h3>
 <ul class="task-list">
@@ -1349,6 +1420,8 @@ not used decision documented) — TC-TBD</label></li>
 state handles DW down — TC-TBD</label></li>
 <li><label><input type="checkbox" />AC-FE-5: Component tests +
 regression Type R pass — TC-TBD</label></li>
+<li><label><input type="checkbox" />AC-FE-6: Sustaina group form blocks
+&gt;1 customer with inline error before submit — TC-TBD</label></li>
 </ul>
 <h3 id="data--migration">Data / Migration</h3>
 <ul class="task-list">
@@ -1410,11 +1483,12 @@ staging — TC-TBD</label></li>
 <tr>
 <td>Q5</td>
 <td>Business</td>
-<td>Fallback policy: exact (Org+Cust+Prod) ไม่เจอ → wildcard / zero /
-fail ?</td>
+<td><del>Fallback policy</del> — <strong>Resolved (meeting
+2026-05-22):</strong> 0 row→<code>SUBSIDY=0</code>, &gt;1 row→error
+(block), no wildcard</td>
 <td>BA</td>
-<td>TBD</td>
-<td>Open</td>
+<td>2026-05-22</td>
+<td><strong>Resolved</strong></td>
 </tr>
 <tr>
 <td>Q6</td>

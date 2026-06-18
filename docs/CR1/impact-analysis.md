@@ -1,11 +1,27 @@
 # CR#1 Net Freight per Customer — Impact Analysis (FE/BE)
 
 **Sources:**
-- Spec: `docs/CR1-net-freight.md`
+- Spec: `docs/CR1/net-freight.md`
 - Meeting: `docs/[ACCxManao] CR5 Package - Review and Discussion.docx` (2026-05-22)
 - Codebase scan: SAM submodule (`web/web/backend/`, `web/web/frontend/`)
 
 **Change summary:** เปลี่ยน Net Freight lookup key จาก `Period+Org+Product` → `Period+Org+Customer+Product` (4-part composite)
+
+**Key / Grain (canonical — อ้างชื่อนี้ทุกที่):** `PERIOD + ORGNO + CUSTOMER_CODE + PRODUCT_CODE`
+`ORGNO` = SO2 = SalesOrg (param `@SaleOrgCode`) · `CUSTOMER_CODE` = Sold-to (`@SoldtoCode`, match `Customer.SoldtoCode`) · ⚠️ Sold-to vs SAP `KUNNR` ยัง open (Q2)
+
+## Decisions (supersedes spec §)
+
+มติ meeting 2026-05-22 — แต่ละข้อ override section ใน `net-freight.md`:
+
+| Decision | Supersedes (net-freight.md §) | Status |
+|---|---|---|
+| Match 0 row → `SUBSIDY = 0` | §9 step 5, R5, §17 Q5 | ✅ applied |
+| Match >1 row → **error (block create)** | §9 step 5, R5, §16 AC-BE-4 | ✅ applied |
+| **No wildcard `'*'` fallback** | §9 step 5, §11 rollback, §12 monitoring, §15 metric | ✅ applied |
+| Lookup เดิม `TOP(1) ORDER BY PERIOD DESC` ต้องลบ + count guard | §9 step 4-5, §14.1 query rewrite | ✅ applied |
+| Sustaina group ต้อง 1:1 customer (validation guard FE+BE) | §8 R9 (new), §16 AC-BE-9/AC-FE-6, §14 estimate | ✅ applied |
+| Nott DW view เสร็จแล้ว → BE −2d (offset ด้วย scope ใหม่) | §14 estimate | ✅ applied |
 
 ## Meeting Delta vs Existing CR1 Spec
 
@@ -77,7 +93,7 @@
 | New unit test | `sp_Sync_Subsidy` 4-part MERGE |
 | New unit test | Lookup exact + 0-match=0 + >1=error policies |
 
-**BE file count:** ~14 files + 1 migration + tests
+**BE file count:** ~8 files changed + verify-only (1 SamSyncService, 6 approval reads, 2 vol SPs, 1 report) + 1 migration + tests — see net-freight.md §7.2 for the full row list
 
 ## Frontend Impact
 
@@ -157,21 +173,28 @@
 | Item | Severity | Note |
 |---|---|---|
 | Sustaina group >1 customer | **High** | Need validation guard FE+BE — `400 error` if group has >1 cust before sync |
-| Match >1 → error policy | **High** | New behavior — need decision: block proposal create OR fail loudly with retry |
-| Historical `warehouse.Subsidy` backfill | Med | `CUSTOMER_CODE='*'` wildcard, then `NOT NULL` constraint |
+| Match >1 → error policy | **High** | **Decided**: block proposal create (error). Code เดิม `OUTER APPLY TOP(1)` ต้องลบ `TOP(1)` + count guard raise error เมื่อ >1 |
+| Historical `warehouse.Subsidy` backfill | Med | `CUSTOMER_CODE='*'` wildcard, then `NOT NULL` constraint. ⚠️ no-wildcard policy แล้ว → row `'*'` เก่าจะ **ไม่ match** exact 4-part lookup (จับ `@SoldtoCode` จริงเสมอ) → กลายเป็น dead row. ต้องตัดสิน: reseed ด้วย customer จริง หรือ ปล่อย `'*'` ไว้สำหรับ historical-only (sync รอบใหม่ทับ) |
 | ProposalProduct snapshot | Low | **Unchanged** — old proposal safe |
 | Migration order | Med | DW view live → SP repoint → SAM migration → cutover (in order) |
 
 ## Effort vs CR1 Doc
 
-Existing doc: BE ~9.5d, FE ~6.5d, total ~34d.
-Meeting confirmed Nott view already done → **BE reduced by ~2d** (no DW dependency wait, no view design coord).
-FE mostly verify since snapshot semantic → matches doc estimate.
+Draft doc: BE ~9.5d, FE ~6.5d, total ~34d.
+
+Reconciled (net-freight.md §14 updated):
+- Nott view done → **BE −2d** (no DW dependency wait, no view design coord)
+- **BUT** scope ใหม่ที่ draft ไม่ได้นับ: >1→error guard + remove `TOP(1)` (+1d BE), sustaina 1:1 validator (+0.5d BE, +0.5d FE), QA sustaina case (+0.5d)
+- **Net:** BE 9.5→**8.5d**, FE 6.5→**7d**, QA 9→**9.5d** → total **ยังคง ~34d** — saving จาก view ถูก offset ด้วย scope ใหม่เกือบหมด
+
+> ⚠️ "BE −2d" ใน draft แรกเป็น optimism — มองข้าม match-policy + sustaina guard. ตัวเลขจริง ~wash.
 
 ## Action Items
 
 1. Confirm `CUSTOMER_CODE` column = `Sold-to` (Customer code) — match `Customer.SoldtoCode` field
-2. Confirm fallback policy: 0-match = 0, >1-match = error (per meeting) — update CR1 doc Q5
+2. ~~Confirm fallback policy~~ — ✅ Resolved: 0-match=0, >1-match=error, no wildcard (net-freight.md Q5 updated)
 3. Add Sustaina group 1:1 validation (new) — FE form + BE command validator
 4. QA test plan must cover: 1:1 happy path, 0-match→0, sustaina-group-multi=fail
 5. Migration script + rollback ready before cutover
+6. **(new)** Decide historical backfill: reseed customer จริง vs ปล่อย `'*'` historical-only — dead row ภายใต้ no-wildcard policy (block migration design)
+7. **(new)** Confirm `ORGNO == SO2 == SalesOrg` mapping — naming เพี้ยนใน 3 doc (Requirement/impact/spec)
