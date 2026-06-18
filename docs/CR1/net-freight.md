@@ -112,7 +112,7 @@ flowchart LR
 
 - A1: K. North สามารถเพิ่ม `SoldtoCode` ใน `View_SAM_FreightSubsidy` ได้ภายใน sprint
 - A2: Customer code ใน DW (SoldtoCode) match กับ `Customer.SoldtoCode` ใน SAM โดยตรง ไม่ต้อง mapping table
-- A3: Historical `warehouse.Subsidy` rows ทั้งหมดสามารถ backfill `CUSTOMER_CODE = '*'` (wildcard) ได้โดยไม่กระทบ reporting
+- A3: Historical `warehouse.Subsidy` rows ทั้งหมดสามารถ backfill `CUSTOMER_CODE = '*'` ได้โดยไม่กระทบ reporting — ⚠️ แต่ภายใต้ no-wildcard match policy row `'*'` จะไม่ถูก lookup จับ (dead row) → ดู Action Item #6 (reseed vs historical-only)
 - A4: Existing hourly sync window พอเพียง — ไม่ต้อง real-time
 - A5: Snapshot semantics ปัจจุบันถูกต้องตาม business — pending proposal ไม่ recalculate ก่อน approve
 
@@ -209,10 +209,11 @@ flowchart LR
 | R2 | Historical Subsidy data ไม่มี Customer — recalc ย้อนหลังไม่ได้ | High | Med | High | Snapshot ปลอดภัย — เผยแพร่ communication ว่าข้อมูลย้อนหลังไม่เปลี่ยน | BA |
 | R3 | Composite key เปลี่ยน → migrate `warehouse.Subsidy` | Med | Med | Med | Backfill `CUSTOMER_CODE='*'` + reseed plan | DBA |
 | R4 | Customer code mapping SAM ↔ DW (SoldtoCode vs KUNNR) | Med | High | High | Verify schema กับ K. North + sample compare | BE |
-| R5 | Fallback เมื่อ Org+Cust+Prod ไม่เจอ row | Med | Med | Med | กำหนด policy ชัด (wildcard / 0 / error) — default `ISNULL(...,0)` | BE |
+| R5 | Match 0 / >1 row policy | Med | Med | Med | **Decided**: 0→`SUBSIDY=0`, >1→error block create. ลบ wildcard fallback. ลบ `TOP(1)` ใน query เดิม | BE |
 | R6 | Performance — index ใหม่ + row count ใหญ่ขึ้น | Low | Med | Low | Bench query plan + monitor p95 | DBA |
-| R7 | DW downtime กระทบ proposal creation | High | High | **High** | Cache last-known-good + alert + fallback wildcard | BE |
+| R7 | DW downtime กระทบ proposal creation | High | High | **High** | Sync เป็น scheduled (decoupled) → อ่านจาก `warehouse.Subsidy` ที่ sync ไว้แล้ว ไม่ query DW ตรง. DW down กระทบแค่ sync รอบถัดไป ไม่ block create. Behavior เมื่อ stale → Q12 (block/cached/warn) | BE |
 | R8 | Audit — number เปลี่ยน user งง | Med | Med | Med | Parallel-run + comm to sales team | PM |
+| R9 | Sustaina group มี >1 customer → 4-part lookup เจอ >1 row → error | Med | High | **High** | Validation guard FE form + BE command validator บังคับ group 1:1 ก่อน create | BE/FE |
 
 ---
 
@@ -244,7 +245,12 @@ flowchart LR
      AND s2.CUSTOMER_CODE = @SoldtoCode
    ```
 
-5. **Fallback strategy** — exact match ไม่เจอ → fallback `(Org+Product)` wildcard `CUSTOMER_CODE='*'` → log warning
+5. **Match policy (decided — meeting 2026-05-22)** — exact 4-part match (`Period+Org+Customer+Product`):
+   - เจอ **1 row** → ใช้ค่านั้น
+   - เจอ **0 row** → `SUBSIDY = 0`
+   - เจอ **>1 row** → **error → block proposal create** (ห้าม silent-pick)
+   - **ไม่มี wildcard `CUSTOMER_CODE='*'` fallback** (ยกเลิกจาก draft เดิม)
+   - ⚠️ lookup เดิมใช้ `OUTER APPLY (SELECT TOP(1) ... ORDER BY PERIOD DESC)` — silently เลือก row ล่าสุดเมื่อเจอหลาย row. ต้อง **ลบ `TOP(1)`** + เพิ่ม count guard เพื่อ raise error เมื่อ >1
 6. **Snapshot semantics ไม่เปลี่ยน** — proposal เก่าใช้ value ที่ save ไว้
 7. **Sync model** — scheduled (เดิม hourly) — fast read, decoupled, ทน DW down
 
@@ -282,7 +288,7 @@ flowchart LR
 
 | Trigger | Action | Recoverable? |
 |---|---|---|
-| Sync ล้มเหลวหลัง migration | Disable feature flag → revert to wildcard lookup | Yes |
+| Sync ล้มเหลวหลัง migration | Disable feature flag → revert to old 3-part lookup (Org+Product) | Yes |
 | Data corruption ใน `warehouse.Subsidy` | Restore จาก pre-migration backup + re-sync | Yes |
 | Production query errors | Toggle flag off (BE code falls back to 3-part key) | Yes |
 | DW view roll-back | DW team revert + SAM disable flag | Yes |
@@ -299,13 +305,14 @@ flowchart LR
 |---|---|---|---|
 | `sp_Sync_Subsidy` runtime | Hangfire dashboard | > 5 min | Slack #sam-ops |
 | Sync lag (last successful sync) | Custom metric | > 2 h | Email + Slack |
-| Fallback hit rate (wildcard match) | App log counter | > 20% | Daily report |
+| Match-0 rate (no customer match → SUBSIDY=0) | App log counter | > 20% | Daily report |
+| Match->1 error rate (blocked create) | App log counter | > 0 | Slack #sam-ops |
 | Query p95 latency (Subsidy lookup) | Application Insights | > baseline + 10% | Slack |
 | Proposal create error rate | App log | > 1% | Pager |
 
 - New dashboard: Grafana `sam-netfreight-cr1` (TBD)
 - New alerts: Slack channel `#sam-cr1-monitor`
-- Log fields added: `subsidyMatchType` (exact / fallback / miss), `subsidyCustomerCode`
+- Log fields added: `subsidyMatchType` (exact / zero / multi-error), `subsidyCustomerCode`
 
 ---
 
@@ -325,19 +332,22 @@ flowchart LR
 
 | Task | Role | Effort | Confidence |
 |---|---|---|---|
-| Investigation DW schema + access setup | BE | 1 d | ±20% |
-| Design data model (staging + mapping) | BE | 0.5 d | ±20% |
+| ~~Investigation DW schema + access setup~~ — Nott view done (meeting 2026-05-22) | BE | ~~1 d~~ 0 d | — |
+| ~~Design data model (staging + mapping)~~ — view done | BE | ~~0.5 d~~ 0 d | — |
 | EF migration + entity | BE | 0.5 d | ±10% |
-| DW connection / credential | DBA | 0.5 d | ±30% |
-| Update `sp_Sync_Subsidy` | BE / DBA | 1.5 d | ±20% |
+| ~~DW connection / credential~~ — view ref swap, no-impact | DBA | ~~0.5 d~~ 0 d | — |
+| Update `sp_Sync_Subsidy` (4-part MERGE) | BE / DBA | 1.5 d | ±20% |
 | Hangfire job / sync verify | BE | 0.5 d | ±10% |
-| Net Freight query rewrite (3 files) | BE | 1 d | ±10% |
-| Fallback / cache strategy | BE | 0.5 d | ±30% |
+| Net Freight query rewrite (3 files) — +remove `TOP(1)`, count guard, >1→error | BE | 1.5 d | ±20% |
+| Match policy (0→0, >1→error) — no wildcard fallback | BE | 0.5 d | ±20% |
+| **Sustaina group 1:1 validator (new scope)** | BE | 0.5 d | ±30% |
 | Unit tests | BE | 1 d | ±20% |
 | Integration test กับ DW staging | BE | 1 d | ±30% |
 | Code review fix | BE | 0.5 d | ±30% |
 | Bug fix buffer | BE | 1 d | ±50% |
-| **BE total** | | **~9.5 d** | |
+| **BE total** | | **~8.5 d** | |
+
+> **Net vs draft:** −2 d (Nott view done) + 1 d (>1→error guard + sustaina 1:1, new scope) → BE 9.5 → **8.5 d**. การ "−2d" จาก view ถูก offset เกือบหมดด้วย scope ใหม่ (match-policy + sustaina guard) ที่ draft เดิมไม่ได้นับ.
 
 ### 14.2 Frontend
 
@@ -349,11 +359,12 @@ flowchart LR
 | Summary view (SummaryWrapper) | FE | 0.5 d | ±20% |
 | Loading / error / tooltip state | FE | 0.5 d | ±30% |
 | Verify Type S/P references | FE | 0.3 d | ±30% |
+| **Sustaina group 1:1 guard (form validation, new scope)** | FE | 0.5 d | ±30% |
 | Component test | FE | 0.5 d | ±20% |
 | Regression Type R full flow | FE | 1 d | ±30% |
 | Code review fix | FE | 0.5 d | ±30% |
 | Bug fix buffer | FE | 0.7 d | ±50% |
-| **FE total** | | **~6.5 d** | |
+| **FE total** | | **~7 d** | |
 
 ### 14.3 Code Review
 
@@ -372,10 +383,11 @@ flowchart LR
 | Test data prep (DW staging + edge) | QA | 1 d |
 | Functional — happy path | QA | 1 d |
 | Edge case — missing/mismatch/DW down | QA | 1.5 d |
+| Edge case — sustaina-group >1 customer → error (new scope) | QA | 0.5 d |
 | Regression — Proposal, Rebate, SAP sync, Report | QA | 2 d |
 | Parallel run (old vs new source) | QA | 1 d |
 | Bug retest cycles | QA | 1.5 d |
-| **QA total** | | **~9 d** |
+| **QA total** | | **~9.5 d** |
 
 ### 14.5 SIT
 
@@ -403,14 +415,16 @@ flowchart LR
 
 | Phase | Effort |
 |---|---|
-| BE | 9.5 d |
-| FE | 6.5 d |
+| BE | 8.5 d |
+| FE | 7 d |
 | Code Review | 1.5 d |
-| QA | 9 d |
+| QA | 9.5 d |
 | SIT | 6 d |
 | UAT | 1.5 d |
 | **Total man-days** | **~34 d** |
 | **Calendar (parallel roles)** | **~5 weeks** |
+
+> **หมายเหตุ:** total ~34d เท่าเดิมแม้ Nott view เสร็จ — เพราะ saving −2d ฝั่ง BE ถูก offset ด้วย scope ใหม่ (>1→error guard, sustaina 1:1 validator FE+BE+QA) ที่ draft แรกไม่ได้นับ.
 
 > **Blockers / preconditions:** DW access + new view ready day 1 — else +1 week. SIT requires DW staging env — else +3 d.
 
@@ -421,7 +435,7 @@ flowchart LR
 | Metric | Baseline | Target | Measure When |
 |---|---|---|---|
 | Net Freight accuracy (vs DW reconciliation) | TBD (current data) | 100% match on exact-key rows | T+7d after cutover |
-| Fallback hit rate (wildcard match) | N/A | < 5% | T+30d |
+| Match-0 rate (no customer match → SUBSIDY=0) | N/A | < 5% | T+30d |
 | Sales-rep complaint count re. Net Freight | TBD (baseline last 30d) | < baseline | T+60d |
 | Sync job runtime | ~{TBD} s | ≤ baseline + 10% | T+7d |
 | Proposal create error rate | ~{TBD}% | ≤ baseline | T+7d |
@@ -435,11 +449,12 @@ flowchart LR
 - [ ] AC-BE-1: `warehouse.Subsidy` has column `CUSTOMER_CODE` — TC-TBD
 - [ ] AC-BE-2: `sp_Sync_Subsidy` MERGE uses 4-part key (Period+Org+Customer+Product) — TC-TBD
 - [ ] AC-BE-3: Proposal create (Type R/S/P) retrieves Subsidy by customer correctly — TC-TBD
-- [ ] AC-BE-4: Fallback behaviour deterministic (wildcard / zero / error per policy) — TC-TBD
-- [ ] AC-BE-5: Unit test covers exact match + fallback + null — TC-TBD
+- [ ] AC-BE-4: Match policy deterministic — 0 row→`SUBSIDY=0`, >1 row→error (block create), no wildcard fallback — TC-TBD
+- [ ] AC-BE-5: Unit test covers exact match + 0-match(=0) + >1-match(error) — TC-TBD
 - [ ] AC-BE-6: Integration test passes against DW staging view — TC-TBD
 - [ ] AC-BE-7: Historical proposal snapshot in `ProposalProduct` unchanged — TC-TBD
 - [ ] AC-BE-8: Query response < baseline + 10% — TC-TBD
+- [ ] AC-BE-9: Sustaina group >1 customer → create blocked with validation error (group must be 1:1) — TC-TBD
 
 ### Frontend
 
@@ -448,6 +463,7 @@ flowchart LR
 - [ ] AC-FE-3: Type S/P verified (used / not used decision documented) — TC-TBD
 - [ ] AC-FE-4: Loading / error / fallback state handles DW down — TC-TBD
 - [ ] AC-FE-5: Component tests + regression Type R pass — TC-TBD
+- [ ] AC-FE-6: Sustaina group form blocks >1 customer with inline error before submit — TC-TBD
 
 ### Data / Migration
 
@@ -465,7 +481,7 @@ flowchart LR
 | Q2 | Data | Customer code ใน DW = `SoldtoCode` หรือ `KUNNR` (SAP)? Match กับ `Customer.SoldtoCode` ใน SAM ไหม | K. North | TBD | Open |
 | Q3 | Data | มี doc / schema ของ view ที่ verify ไหม | K. North | TBD | Open |
 | Q4 | Data | Refresh frequency ใน DW เอง = ? | DW team | TBD | Open |
-| Q5 | Business | Fallback policy: exact (Org+Cust+Prod) ไม่เจอ → wildcard / zero / fail ? | BA | TBD | Open |
+| Q5 | Business | ~~Fallback policy~~ — **Resolved (meeting 2026-05-22):** 0 row→`SUBSIDY=0`, >1 row→error (block), no wildcard | BA | 2026-05-22 | **Resolved** |
 | Q6 | Business | Historical row เก่าใน `warehouse.Subsidy` → set `CUSTOMER_CODE='*'` หรือ delete + reseed ? | BA / DBA | TBD | Open |
 | Q7 | Business | SUBSIDY ใน ProposalProduct ของ pending proposal — recalculate ก่อน approve ไหม ? | BA | TBD | Open |
 | Q8 | Business | Cutover date = วันไหน | PM | TBD | Open |
