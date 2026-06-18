@@ -93,7 +93,7 @@
 | New unit test | `sp_Sync_Subsidy` 4-part MERGE |
 | New unit test | Lookup exact + 0-match=0 + >1=error policies |
 
-**BE file count:** ~8 files changed + ~6 verify-only (approval reads, vol SPs) + 1 migration + tests (= ~11 touch points, ตรงกับ net-freight.md §7.2)
+**BE file count:** ~8 files changed + verify-only (1 SamSyncService, 6 approval reads, 2 vol SPs, 1 report) + 1 migration + tests — see net-freight.md §7.2 for the full row list
 
 ## Frontend Impact
 

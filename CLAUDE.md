@@ -199,8 +199,7 @@ Detailed docs per feature — read before working on a specific area. Docs descr
 
 - โครงบังคับ: Sources → Change summary → **Key/Grain** → Discovery → **Decisions (supersedes spec §)** → Backend Impact → Frontend Impact → Constraints → Risk/Blocker → Effort Estimate → Action Items
 - ทุก decision ต้อง propagate ครบทุก section ที่ override (ไม่ใช่แค่ section หลัก) + ทุก constraint ใหม่ต้องมี Effort row + AC คู่
-- ต้อง verify **behavior ของ code เดิม** ไม่ใช่แค่ anchor `file:line` มีจริง (เปิดไฟล์ ไม่เดา) — ไฟล์ใหม่ mark "(ใหม่)"
-- ทุก claim ต้องมี code anchor `file:line` ที่ verify จาก codebase จริง (เปิดไฟล์ ไม่เดา) — ไฟล์ใหม่ mark "(ใหม่)"
+- ทุก claim ต้องมี code anchor `file:line` ที่ verify จาก codebase จริง (เปิดไฟล์ ไม่เดา) — verify **behavior ของ code เดิม** ด้วย ไม่ใช่แค่ anchor มีจริง · ไฟล์ใหม่ mark "(ใหม่)"
 - Impact table ทุกแถวมี Severity **H/M/L** — FE ต้องครอบถึง types, Zod schema, i18n, MSW ไม่ใช่แค่ component หลัก
 - Estimate granular 0.3–0.5 d ต่อ task และต้องมีแถว tests, **Code review + QA + UAT**, Buffer เสมอ
 - ไฟล์ประกอบ (meeting summary, mockup, transcript, draft) อยู่ใน `docs/CR<N>/` ได้ แต่ผลวิเคราะห์สุดท้ายต้อง consolidate ลง `impact-analysis.md` เสมอ — อ้างอิงตัวอย่าง: [`docs/CR7-rebate-summary/impact-analysis.md`](docs/CR7-rebate-summary/impact-analysis.md), [`docs/CR6/impact-analysis.md`](docs/CR6/impact-analysis.md)
