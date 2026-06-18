@@ -37,6 +37,7 @@ Sub-agent reads shared context → does work → returns result
 | `tester` | Write xUnit tests (BE) or test scenario checklists (FE) | Test files / checklists |
 | `code-reviewer` | Pre-merge review — correctness, security, patterns | Findings list |
 | `expert-viewer` | Deep read-only investigation, root cause, "why does X work this way" | Analysis text |
+| `cr-analyst` | Change Request impact analysis — produce/reconcile/audit `docs/CR<N>/`. Owns CR docs. **Never code, never `web/`.** | `docs/CR<N>/` markdown |
 
 ---
 
@@ -71,6 +72,12 @@ TH: `รีวิวโค้ด`, `เช็คก่อน merge`, `ตรว�
 ### expert-viewer
 EN: `why does X happen`, `how does Y work`, `trace this flow`, `explain the logic`, `find root cause`, `investigate`
 TH: `วิเคราะห์`, `หาสาเหตุ`, `อธิบายโค้ด`, `trace ตามโค้ด`, `ทำไมถึง`
+
+### cr-analyst
+EN: `CR impact analysis`, `analyze CR`, `reconcile CR`, `sync spec CR`, `audit CR doc`, `CR drift`, `update CR doc`, `propagate decision CR`
+TH: `วิเคราะห์ CR`, `ทำ impact analysis`, `ตรวจ CR`, `อัพเดท CR`, `reconcile CR`
+
+**Auto-invoke:** any prompt referencing `docs/CR<N>/`, a CR number (`CR1`..`CR9`), or `impact-analysis.md` for a change request → invoke cr-analyst (NOT ba-expert — ba-expert owns `tasks/<TICKET>/`, cr-analyst owns `docs/CR<N>/`).
 
 ---
 
@@ -109,6 +116,9 @@ Planning / requirements only (no code)
 Investigation / "why does X" (no code change)
   └─► call expert-viewer
 
+CR impact analysis / reconcile / audit (docs/CR<N>/)
+  └─► call cr-analyst
+
 Pre-merge review
   └─► call code-reviewer
 ```
@@ -130,12 +140,16 @@ Pre-merge review
 | "review PR นี้" | `code-reviewer` |
 | "ทำไม approval chain ข้าม SDM" | `expert-viewer` |
 | "trace flow rebate calculation" | `expert-viewer` |
+| "วิเคราะห์ CR1 impact analysis" | `cr-analyst` (Analyze) |
+| "reconcile CR1 spec กับ meeting" | `cr-analyst` (Reconcile) |
+| "ตรวจ CR2 doc หา issue" | `cr-analyst` (Audit) |
 
 ---
 
 ## Hard Rules
 
 - **ba-expert never branches, never writes code, never commits.** Output = markdown + `tasks/<TICKET>/` scaffold only.
+- **cr-analyst never touches `web/`, never branches, never commits.** Output = `docs/CR<N>/` markdown (+ regenerated HTML) only. Routes CR work; ba-expert routes `tasks/<TICKET>/` Jira tickets — distinct artifacts, don't cross them.
 - **orchestrator** owns branching + commit hand-off. Specialist agents only edit files.
 - Main Claude routes by keyword in user prompt. Auto-invoke ba-expert on any `SAM-NNNN` reference.
 - One round of clarifying questions max (especially ba-expert Draft mode).
