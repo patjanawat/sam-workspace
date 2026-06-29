@@ -151,6 +151,68 @@ Key differences:
 
 ---
 
+## P.M. Max Value / "Latest Approved Discount & Rebate" (SAM-1767)
+
+**P.M. Max Value** (แถวใต้แต่ละ rebate section) + footer **"Latest Approved Discount & Rebate"** บนหน้า Summary = **baseline ของรอบก่อนหน้า** เพื่อเทียบกับ "Current" ของ clone proposal.
+
+### กฎคำนวณ (footer Summary "of Proposal")
+- **Current Discount & Rebate** = Σ `max(new)` แบบ **last-page-per-section** (แต่ละ section เลือกหน้าสุดท้ายที่มี range row; section หาย/ลบ range → ถอย page ก่อนหน้า per-section) — `accumulateMaxBySection`
+- **Latest Approved** = Σ **`pmBaselineBySection`** (BE field) ต่อ product — **ค่าคงที่ = ยอด approved ของ proposal ก่อนหน้า** ไม่เปลี่ยนตามการแก้/ลบ page/range ของ draft ปัจจุบัน. fallback → `accumulateMaxBySection.latest` (per-page) เฉพาะตอนไม่มี field (create / ไม่มี previous)
+- **Changed** = Current − Latest (อาจติดลบถ้า draft ลด rebate ต่ำกว่า baseline)
+
+> ⚠️ **อย่าสับสน 2 grain:** แถว **P.M. Max Value (per-section, per-page)** = baseline ของ **page นั้น ๆ** (`meta.pmLastStep`); footer **Latest Approved** = ยอดรวม **ทั้ง proposal ก่อนหน้า** (`pmBaselineBySection` collapsed last-page-per-section) — คนละค่ากัน
+
+### P.M. Max Value row — grain = (section, product, **page**)
+- **source page** → baseline ของ previous page ที่ตรงกัน (เก็บของตัวเอง เช่น page2 = 23 ไม่ใช่ page1)
+- **added page** (กด Add ใน session) → baseline ของ **page 1**
+- อ่านจาก per-page `meta.pmLastStep` ก่อน (correct grain); fallback `pmBaselineBySection` เฉพาะหน้าที่ไม่มี per-page meta
+- **ซ่อนแถว** เมื่อ section ไม่มี range row (ลบ range หมด) — editable `PmMaxStep` return null เมื่อ `ranges` ว่าง; summary `mapRebatePayloadToUI` skip เมื่อไม่มี countable row
+
+### `isAddedPage` flag (สำคัญ — เคยเป็นบั๊ก)
+- set `true` ทุกครั้งที่กด **Add New Page** (create **และ** clone, `addNewPageFromTemplate`) → **persist เข้า approved data**
+- ปัญหา: clone proposal ที่หน้านึงเคย added-แล้ว-approved → สืบทอด flag → ถูกมองเป็น added → ได้ baseline page1 ผิด (ควรได้ rate ตัวเอง)
+- **fix:** ตอน clone hydrate จาก source (`isSource`) → **reset `isAddedPage=false` ทุกหน้า** (`RebateWrapper` hydrate effect); เฉพาะ Add ใน session ปัจจุบันค่อย mark true → ครอบทุก generation
+- BE `InjectPmMaxBaseline` **honor flag จาก payload**: added → page1 baseline; ไม่ใช่เดาจาก pageNumber collision (กัน reindex หลัง delete ทำ baseline เพี้ยน)
+
+### Gapped PAGE → reindex baseline (สำคัญ — บั๊ก fix รอบล่าสุด, branch `bugfix/pm-max-baseline-page-reindex`)
+- **อาการ:** clone proposal ที่ "เพิ่ม page" → **ทุก page โชว์ PM Max = page1** (ควรเป็น baseline ของ page ตัวเอง)
+- **root cause:** previous proposal เก็บ `ProposalProductTypeRS.PAGE` แบบ **ไม่ต่อเนื่อง** (เช่น `{1,3}` หรือ `{1,4}` หลัง delete page โดยไม่ renumber). baseline query group ด้วย **raw PAGE** → key เป็น {1,3}. clone ใช้ pageNumber **ต่อเนื่อง** 1..N → `baseline.TryGetValue(2)` miss → ตก fallback page1 → ทุกหน้าได้ page1
+- **fix:** `RebateHelpers.ReindexBaselinePages(baselineRaw, discountRaw)` — remap page key เป็น contiguous 1..N ก่อน inject + collapse:
+  - union ของ keys (baseline ∪ discount) → `OrderBy(p)` → map page ที่ i เป็น i+1 (monotonic, รักษาลำดับ → last-page-per-section collapse ยังถูก)
+  - รันใน `GetProposalDetailByIdQueryHandler` clone path: `ReindexBaselinePages` → `InjectPmMaxBaseline` → `CollapseToLastPagePerSection`
+- **type-agnostic:** อยู่ใน baseline path → ครอบ **ทั้ง Type R และ Type S** (baseline query รวม SR2/AR1); แก้ที่ read-time → จัดการ data เก่าที่ gappy โดยไม่ต้อง re-save
+- **ไม่กระทบ:** added-page→page1 fallback, isAddedPage guard, create flow (ไม่มี previousId) — เดิมทั้งหมด
+- verified: gap {1,4}, multi-product, modify/add/delete, edit added page, Type R + **Type S clone** — ไม่ regression
+
+### Baseline มาจาก **BE** (ไม่ใช่ localStorage)
+- baseline = `max(RATE)` ต่อ `(PAGE, PRODUCT_CODE, RATE_TYPE)` ของ **previous proposal** (`Proposal.PreviousId`, level เดียว)
+- BE inject ลง `meta.pmLastStep` ของ payload ตอน `GetProposalDetailById` → FE อ่านอย่างเดียว → **request + approval + ทุก user เห็นเหมือนกัน** (เดิมใช้ localStorage → approval อ่านไม่ได้ = บั๊ก)
+- BE key files: `Features/ProposalDetails/GetByIdQuery/GetProposalDetailByIdQueryHandler.cs` (`BuildPmMaxBaselineAsync` group ด้วย raw PAGE + `CollapseToLastPagePerSection`) + `Shared/Helpers/RebateHelpers.cs` (`RateTypeToSectionKey` = single source of truth, `InjectPmMaxBaseline`, **`ReindexBaselinePages`** remap gappy PAGE → contiguous)
+- FE: `mapper/rebate-footer.mapper.tsx` (Current = `accumulateMaxBySection`; Latest = `sumBaselineByProduct(pmBaselineBySection)`), `mapper/summary-rebate.mapper.tsx` (per-section row อ่าน `meta.pmLastStep` ก่อน + ซ่อนเมื่อไม่มี range), `components/rebate/PmMaxStep.tsx` (editable, return null เมื่อไม่มี range), `RebateWrapper.tsx` (clone hydrate reset `isAddedPage`; `applyPmMaxToRowsMeta` override เฉพาะ added page)
+
+### RATE_TYPE → section key (รองรับ Type R + S)
+| RATE_TYPE | code | section key | type |
+|---|---|---|---|
+| NormalRebate | NR1 | normalRebate | R, S |
+| SpecialRebate | SR1 | specialRebate | R, S |
+| FreightRebate | FR1 | freightRebate | R, S |
+| LoyaltyProgram | SR3 | loyaltyProgram | R, S |
+| SpecialAdditionalThbTon | SR2 | specialAdditionalTHBTon | **S** |
+| AccumulateThbTon | AR1 | accumulateTHBT | **S** |
+- **Discount** ไม่อยู่ใน map → ไม่ inject (ใช้ `max(old)` ใน Latest)
+- **Type P** (SR4/AR2 Amount) **ยังไม่ครอบ** — เพิ่มใน `RateTypeToSectionKey` ถ้าต้องรองรับ
+
+### Gotchas
+- **create proposal** = ไม่มี `PreviousId` → BE ไม่ inject → ไม่มี PM Max row, Latest = 0/`max(old)`. **อย่า inject ให้ create**. fix ทั้งหมด gate ที่ clone (`isClone`/`previousId`) → create ไม่กระทบ
+- **Summary Latest ≠ Rebate-page Latest:** Summary footer = "of Proposal" (ทั้ง proposal, Latest = `pmBaselineBySection` คงที่); Rebate editable footer = "(This Page)" (per-page baseline) — คนละ builder, แก้ Summary ไม่กระทบ Rebate page
+- **Latest Approved (Summary) ต้องคงที่ = 289-style** (ยอด previous approved); อย่าผูกกับ page ปัจจุบัน (เคยพลาด: เปลี่ยนไปใช้ per-page → ลบ page แล้ว Latest ตกจาก 289→29)
+- **reindex page = deferred:** delete page = soft-flag (`deleted:true`) ไม่ renumber; `reindexPages` (1,3,4→1,2,3) รันเฉพาะตอน **hydrate** (`didHydrateRef` one-shot guard) = reload/remount ไม่ใช่ตอน delete หรือ back ที่ไม่ remount
+- payload section key = RebateRowKey (`specialAdditionalTHBTon`); ระวัง `summary-rebate.mapper` SECTION_KEY_MAP map ไป uiKey `specialAddTHB` (คนละตัวกับ payload key)
+- PM Max = baseline คงที่ **ไม่เปลี่ยนตามค่า new ที่แก้** (มาจาก previous) — ต่างจาก Current ที่เปลี่ยนตาม new
+- **FE isAddedPage-reset = Type R เท่านั้น** (`RebateWrapper` type-r); Type P/S ใช้ component path แยก. แต่ **BE fix (`ReindexBaselinePages` + `InjectPmMaxBaseline` + baseline query) = type-agnostic** → ครอบ Type S clone ด้วย (verified S2600032/S2600011) — อย่าสับสนสองชั้นนี้
+
+---
+
 ## Related Features
 
 | Feature | ความสัมพันธ์ |
