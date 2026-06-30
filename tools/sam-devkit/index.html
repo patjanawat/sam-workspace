@@ -4,36 +4,82 @@
 <style>
   body { font: 14px/1.5 system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
   h1 { font-size: 1.25rem; }
+  nav { margin: 1rem 0 .5rem; display: flex; gap: .5rem; }
+  nav button { cursor: pointer; padding: .4rem .8rem; }
   label { display: block; margin: .5rem 0 .2rem; font-weight: 600; }
   input { width: 100%; padding: .4rem; box-sizing: border-box; }
   button { margin-top: 1rem; padding: .5rem 1rem; cursor: pointer; }
   pre { background: #111; color: #0f0; padding: 1rem; min-height: 8rem; white-space: pre-wrap; overflow-x: auto; }
   .ok { color: #0a0; } .err { color: #c00; }
 </style>
-<h1>sam-devkit — approve-through</h1>
-<label>API base URL</label>
-<input id="apiBaseUrl" placeholder="http://localhost:5000">
-<label>Proposal ID (Pending)</label>
-<input id="proposalId" placeholder="guid">
-<button id="run">Run approve-through</button>
+<h1>sam-devkit</h1>
+<nav>
+  <button data-tab="approve">Approve-through</button>
+  <button data-tab="clone">Clone → approve</button>
+  <button data-tab="create">Create → approve</button>
+</nav>
+<section id="tab-approve">
+  <label>API base URL</label>
+  <input id="apiBaseUrl" placeholder="http://localhost:5000">
+  <label>Proposal ID (Pending)</label>
+  <input id="proposalId" placeholder="guid">
+  <button id="run">Run approve-through</button>
+</section>
+<section id="tab-clone" hidden>
+  <label>Source RequestNo</label><input id="cl-requestNo">
+  <label>Source Version</label><input id="cl-version" type="number">
+  <label>SalesOrgId</label><input id="cl-salesOrgId">
+  <label>ProposalGroupId (P=1,R=2,S=3)</label><input id="cl-groupId" type="number">
+  <label>CustomerGroupId</label><input id="cl-cg">
+  <label>Month</label><input id="cl-month" type="number">
+  <label>Year</label><input id="cl-year" type="number">
+  <label><input type="checkbox" id="cl-e2e" checked> Then run approve-through</label>
+  <button id="cl-run">Run clone</button>
+</section>
+<section id="tab-create" hidden>
+  <label>Type (R/S/P)</label><input id="cr-type" value="R">
+  <label>SalesOrgId</label><input id="cr-salesOrgId">
+  <label>CustomerGroupId</label><input id="cr-cg">
+  <label>Product IDs (comma-separated)</label><input id="cr-products">
+  <label>Month</label><input id="cr-month" type="number">
+  <label>Year</label><input id="cr-year" type="number">
+  <label>Raw rebatePayload JSON (optional — overrides template)</label><input id="cr-raw">
+  <label><input type="checkbox" id="cr-e2e" checked> Then run approve-through</label>
+  <button id="cr-run">Run create</button>
+</section>
 <pre id="log"></pre>
 <script>
   const $ = (id) => document.getElementById(id);
   fetch('/config').then((r) => r.json()).then((c) => { $('apiBaseUrl').value = c.apiBaseUrl || ''; });
 
-  $('run').onclick = async () => {
+  function show(tab) {
+    for (const s of ['approve', 'clone', 'create']) $('tab-' + s).hidden = (s !== tab);
+  }
+  document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => show(b.dataset.tab); });
+  show('approve');
+
+  async function stream(body) {
     const logEl = $('log'); logEl.textContent = '';
-    const res = await fetch('/run', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ module: 'approve', apiBaseUrl: $('apiBaseUrl').value, proposalId: $('proposalId').value }),
-    });
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      logEl.textContent += dec.decode(value, { stream: true });
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-  };
+    const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const reader = res.body.getReader(); const dec = new TextDecoder();
+    for (;;) { const { value, done } = await reader.read(); if (done) break; logEl.textContent += dec.decode(value, { stream: true }); logEl.scrollTop = logEl.scrollHeight; }
+  }
+
+  $('run').onclick = () => stream({ module: 'approve', apiBaseUrl: $('apiBaseUrl').value, proposalId: $('proposalId').value });
+
+  $('cl-run').onclick = () => stream({
+    module: $('cl-e2e').checked ? 'end-to-end-clone' : 'clone',
+    apiBaseUrl: $('apiBaseUrl').value,
+    source: { requestNo: $('cl-requestNo').value, version: Number($('cl-version').value), salesOrgId: $('cl-salesOrgId').value, proposalGroupId: Number($('cl-groupId').value), customerGroupId: $('cl-cg').value },
+    month: Number($('cl-month').value), year: Number($('cl-year').value),
+  });
+
+  $('cr-run').onclick = () => stream({
+    module: $('cr-e2e').checked ? 'end-to-end-create' : 'create',
+    apiBaseUrl: $('apiBaseUrl').value,
+    type: $('cr-type').value, salesOrgId: $('cr-salesOrgId').value, customerGroupId: $('cr-cg').value,
+    productIds: $('cr-products').value.split(',').map((s) => s.trim()).filter(Boolean),
+    month: Number($('cr-month').value), year: Number($('cr-year').value),
+    rawPayload: $('cr-raw').value ? { rebatePayload: $('cr-raw').value } : undefined,
+  });
 </script>

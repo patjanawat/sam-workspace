@@ -6,6 +6,8 @@ import { assertDevHost } from './lib/guard.mjs';
 import { loadConfig } from './lib/config.mjs';
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
+import { cloneProposal } from './lib/clone.mjs';
+import { createProposal } from './lib/create.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8787;
@@ -40,11 +42,30 @@ async function handleRun(req, res, cfg) {
     assertDevHost(apiBaseUrl);
     const client = createClient({ baseUrl: apiBaseUrl });
 
-    if (input.module === 'approve') {
-      const result = await approveThrough({
-        client, accounts: cfg.roles, proposalId: input.proposalId, log,
+    const submitter = input.submitAs === 'sam' ? cfg.roles.sam : cfg.roles.srp;
+    let proposalId = input.proposalId;
+
+    if (input.module === 'create' || input.module === 'end-to-end-create') {
+      const r = await createProposal({
+        client, account: submitter, type: input.type, salesOrgId: input.salesOrgId,
+        customerGroupId: input.customerGroupId, month: input.month, year: input.year,
+        productIds: input.productIds, rawPayload: input.rawPayload, log,
       });
+      proposalId = r.proposalId;
+      res.write(`CREATED ${JSON.stringify(r)}\n`);
+    } else if (input.module === 'clone' || input.module === 'end-to-end-clone') {
+      const r = await cloneProposal({
+        client, account: submitter, source: input.source, month: input.month, year: input.year, log,
+      });
+      proposalId = r.proposalId;
+      res.write(`CREATED ${JSON.stringify(r)}\n`);
+    }
+
+    if (input.module === 'approve' || input.module.startsWith('end-to-end')) {
+      const result = await approveThrough({ client, accounts: cfg.roles, proposalId, log });
       res.write('RESULT ' + JSON.stringify(result) + '\n');
+    } else if (input.module === 'create' || input.module === 'clone') {
+      res.write('RESULT ' + JSON.stringify({ proposalId }) + '\n');
     } else {
       res.write(`RESULT ${JSON.stringify({ error: `unknown module "${input.module}"` })}\n`);
     }
@@ -69,6 +90,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && req.url === '/run') {
       return await handleRun(req, res, cfg);
+    }
+    if (req.method === 'GET' && req.url.startsWith('/options')) {
+      assertDevHost(cfg.apiBaseUrl);
+      const client = createClient({ baseUrl: cfg.apiBaseUrl });
+      const { token } = await client.login(cfg.roles.srp);
+      const options = await client.get('/requests/options', token);
+      return send(res, 200, options);
     }
     send(res, 404, { error: 'not found' });
   } catch (e) {
