@@ -40,6 +40,7 @@ test('login throws LoginError with status on 401', async () => {
   await assert.rejects(() => client.login({ email: 'a', password: 'b' }), (e) => {
     assert.ok(e instanceof LoginError);
     assert.equal(e.status, 401);
+    assert.match(e.bodyText, /Unauthorized/);
     return true;
   });
 });

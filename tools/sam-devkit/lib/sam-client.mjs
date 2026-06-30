@@ -18,7 +18,8 @@ export function createClient({ baseUrl, fetchImpl = globalThis.fetch }) {
   const base = baseUrl.replace(/\/$/, '');
 
   async function raw(method, path, { token, body } = {}) {
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = {};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetchImpl(`${base}${path}`, {
       method,
