@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>sam-devkit</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.25rem; }
+  label { display: block; margin: .5rem 0 .2rem; font-weight: 600; }
+  input { width: 100%; padding: .4rem; box-sizing: border-box; }
+  button { margin-top: 1rem; padding: .5rem 1rem; cursor: pointer; }
+  pre { background: #111; color: #0f0; padding: 1rem; min-height: 8rem; white-space: pre-wrap; overflow-x: auto; }
+  .ok { color: #0a0; } .err { color: #c00; }
+</style>
+<h1>sam-devkit — approve-through</h1>
+<label>API base URL</label>
+<input id="apiBaseUrl" placeholder="http://localhost:5000">
+<label>Proposal ID (Pending)</label>
+<input id="proposalId" placeholder="guid">
+<button id="run">Run approve-through</button>
+<pre id="log"></pre>
+<script>
+  const $ = (id) => document.getElementById(id);
+  fetch('/config').then((r) => r.json()).then((c) => { $('apiBaseUrl').value = c.apiBaseUrl || ''; });
+
+  $('run').onclick = async () => {
+    const logEl = $('log'); logEl.textContent = '';
+    const res = await fetch('/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'approve', apiBaseUrl: $('apiBaseUrl').value, proposalId: $('proposalId').value }),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      logEl.textContent += dec.decode(value, { stream: true });
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  };
+</script>
