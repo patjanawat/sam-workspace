@@ -1,0 +1,10 @@
+{
+  "apiBaseUrl": "http://localhost:5000",
+  "roles": {
+    "srp": { "email": "srp@example.com", "password": "CHANGE_ME" },
+    "sam": { "email": "sam@example.com", "password": "CHANGE_ME" },
+    "sdm": { "email": "sdm@example.com", "password": "CHANGE_ME" },
+    "pte": { "email": "pte@example.com", "password": "CHANGE_ME" },
+    "cdr": { "email": "cdr@example.com", "password": "CHANGE_ME" }
+  }
+}
