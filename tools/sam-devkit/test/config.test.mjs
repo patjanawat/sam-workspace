@@ -27,3 +27,8 @@ test('missing apiBaseUrl throws', () => {
   const bad = { ...good }; delete bad.apiBaseUrl;
   assert.throws(() => loadConfig(bad), /apiBaseUrl/);
 });
+
+test('missing roles object throws naming roles', () => {
+  const bad = { apiBaseUrl: 'http://localhost:5000' };
+  assert.throws(() => loadConfig(bad), /roles/);
+});

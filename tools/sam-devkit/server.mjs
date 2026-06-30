@@ -23,11 +23,18 @@ function send(res, status, body, type = 'application/json') {
 async function handleRun(req, res, cfg) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
-  const input = JSON.parse(raw || '{}');
-  const apiBaseUrl = input.apiBaseUrl || cfg.apiBaseUrl;
 
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
   const log = (m) => res.write(m + '\n');
+
+  let input;
+  try {
+    input = JSON.parse(raw || '{}');
+  } catch {
+    res.write('ERROR Bad request body (invalid JSON)\n');
+    return res.end();
+  }
+  const apiBaseUrl = input.apiBaseUrl || cfg.apiBaseUrl;
 
   try {
     assertDevHost(apiBaseUrl);
