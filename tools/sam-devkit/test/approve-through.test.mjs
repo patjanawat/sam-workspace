@@ -54,6 +54,7 @@ test('full chain srp-submitted: approves sam,sdm,pte,cdr', async () => {
   const approved = out.steps.filter((s) => s.action === 'approved').map((s) => s.role);
   assert.deepEqual(approved, ['sam', 'sdm', 'pte', 'cdr']);
   assert.equal(out.cdrJobId, 'job-123');
+  assert.equal(out.finalStatus, 2); // cdr approval is async (Hangfire) — proposal still Pending right after the PUT
 });
 
 test('sam auto-bypassed (sam not current): skips sam, approves sdm,pte,cdr', async () => {
@@ -72,4 +73,20 @@ test('sam auto-bypassed (sam not current): skips sam, approves sdm,pte,cdr', asy
   assert.equal(actions.sam, 'skipped');
   assert.equal(actions.sdm, 'approved');
   assert.equal(actions.cdr, 'approved');
+});
+
+test('stops immediately when proposal is already Approved (no approve call)', async () => {
+  const client = {
+    async login() { return { token: 'tok' }; },
+    async get() { return { proposalStatus: 3, rowVersion: 'RV', canApprove: false }; },
+    async put() { throw new Error('must not approve an already-Approved proposal'); },
+  };
+  const accounts = {
+    sam: { email: 'sam', password: 'x' }, sdm: { email: 'sdm', password: 'x' },
+    pte: { email: 'pte', password: 'x' }, cdr: { email: 'cdr', password: 'x' },
+  };
+  const out = await approveThrough({ client, accounts, proposalId: 'P1' });
+  assert.equal(out.finalStatus, 3);
+  assert.equal(out.steps.length, 1);
+  assert.equal(out.steps[0].action, 'stopped');
 });

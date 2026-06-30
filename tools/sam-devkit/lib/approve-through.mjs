@@ -20,7 +20,7 @@ export async function approveThrough({ client, accounts, proposalId, log = () =>
     finalStatus = detail.proposalStatus;
 
     if (finalStatus === PROPOSAL_STATUS.Approved || finalStatus === PROPOSAL_STATUS.Rejected) {
-      log(`[${role}] proposal already ${finalStatus === 3 ? 'Approved' : 'Rejected'} — stop`);
+      log(`[${role}] proposal already ${finalStatus === PROPOSAL_STATUS.Approved ? 'Approved' : 'Rejected'} — stop`);
       steps.push({ role, action: 'stopped', status: finalStatus });
       break;
     }
@@ -39,7 +39,7 @@ export async function approveThrough({ client, accounts, proposalId, log = () =>
     steps.push({ role, action: 'approved', status: finalStatus });
 
     if (role === 'cdr') {
-      cdrJobId = res.jobId || null;
+      cdrJobId = res.jobId ?? null;
       log(`[cdr] approval enqueued — jobId=${cdrJobId} (SAP sync runs async)`);
     }
   }
