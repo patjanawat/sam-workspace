@@ -18,6 +18,7 @@ test('type S adds special + accum amount payloads', async () => {
   const sp = JSON.parse(out.specialPayload);
   assert.equal(sp.sections[0].productIds[0], 'PRODY');
   assert.ok(out.accumPayload);
+  assert.equal(JSON.parse(out.accumPayload).sections[0].productIds[0], 'PRODY');
 });
 
 test('type P injects product into project payload object', async () => {

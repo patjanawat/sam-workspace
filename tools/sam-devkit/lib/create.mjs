@@ -20,7 +20,7 @@ export async function createProposal({
   if (!proposalGroupId) throw new Error(`Unknown type "${type}" (expected R, S, or P)`);
 
   const from = isoDate(year, month, 1);
-  const to = isoDate(year, month, 28);
+  const to = isoDate(year, month, new Date(year, month, 0).getDate());
   const payload = rawPayload || (await buildPayload({ type, productIds, from, to }));
 
   log(`login as ${account.email}`);

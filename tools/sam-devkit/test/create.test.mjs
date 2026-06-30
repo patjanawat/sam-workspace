@@ -33,6 +33,17 @@ test('create maps type R to proposalGroupId 2 and submits', async () => {
   assert.deepEqual(client.calls.at(-1), ['put', '/requests/C1/submit', undefined]);
 });
 
+test('create maps type S to proposalGroupId 3', async () => {
+  const client = recordingClient();
+  await createProposal({
+    client, account: { email: 'srp', password: 'x' },
+    type: 'S', salesOrgId: '1000', customerGroupId: 'cg-1', month: 7, year: 2026,
+    productIds: ['PRODY'],
+  });
+  const create = client.calls.find((c) => c[1] === '/requests')[2];
+  assert.equal(create.proposalGroupId, 3);
+});
+
 test('rawPayload overrides template', async () => {
   const client = recordingClient();
   await createProposal({
