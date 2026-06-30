@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "currentPage": 1,
+  "totalPages": 1,
+  "maxPages": 5,
+  "pages": [
+    {
+      "pageNumber": 1,
+      "deleted": false,
+      "disabled": false,
+      "payload": {
+        "validFrom": "__FROM__",
+        "validTo": "__TO__",
+        "products": [ { "colId": "col-1", "productId": "__PRODUCT_ID__" } ],
+        "values": {
+          "discount": { "col-1": { "old": null, "new": 100 } },
+          "volume": { "col-1": { "old": null, "new": 500 } },
+          "shipPoint": { "col-1": { "old": null, "new": "XXXX" } },
+          "shipCond": { "col-1": { "old": null, "new": "01" } },
+          "shipTo": { "col-1": { "old": null, "new": "SHIP01" } },
+          "billTo": { "col-1": { "old": null, "new": "BILL01" } },
+          "contract": { "col-1": { "old": null, "new": "" } }
+        }
+      }
+    }
+  ]
+}

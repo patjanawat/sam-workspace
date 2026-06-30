@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "currentPage": 1,
+  "totalPages": 1,
+  "maxPages": 5,
+  "pages": [
+    {
+      "pageNumber": 1,
+      "deleted": false,
+      "disabled": false,
+      "payload": [
+        {
+          "section": "discountHeader",
+          "meta": { "method": 1, "from": "__FROM__", "to": "__TO__" },
+          "rows": [
+            { "range": { "from": 0, "to": 0 }, "values": [ { "productId": "__PRODUCT_ID__", "old": 0, "new": 100 } ] }
+          ]
+        }
+      ]
+    }
+  ]
+}
