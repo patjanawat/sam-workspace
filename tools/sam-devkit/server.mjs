@@ -91,7 +91,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && req.url === '/run') {
       return await handleRun(req, res, cfg);
     }
-    if (req.method === 'GET' && req.url.startsWith('/options')) {
+    if (req.method === 'GET' && req.url === '/options') {
       assertDevHost(cfg.apiBaseUrl);
       const client = createClient({ baseUrl: cfg.apiBaseUrl });
       const { token } = await client.login(cfg.roles.srp);

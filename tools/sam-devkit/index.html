@@ -13,14 +13,14 @@
   .ok { color: #0a0; } .err { color: #c00; }
 </style>
 <h1>sam-devkit</h1>
+<label>API base URL</label>
+<input id="apiBaseUrl" placeholder="http://localhost:5000">
 <nav>
   <button data-tab="approve">Approve-through</button>
   <button data-tab="clone">Clone → approve</button>
   <button data-tab="create">Create → approve</button>
 </nav>
 <section id="tab-approve">
-  <label>API base URL</label>
-  <input id="apiBaseUrl" placeholder="http://localhost:5000">
   <label>Proposal ID (Pending)</label>
   <input id="proposalId" placeholder="guid">
   <button id="run">Run approve-through</button>
@@ -34,6 +34,11 @@
   <label>Month</label><input id="cl-month" type="number">
   <label>Year</label><input id="cl-year" type="number">
   <label><input type="checkbox" id="cl-e2e" checked> Then run approve-through</label>
+  <label>Submit as</label>
+  <select id="cl-submitAs">
+    <option value="srp">srp — full 4-step chain (needs srp.ReportToId = sam)</option>
+    <option value="sam">sam — auto-bypass ASM, chain starts at sdm</option>
+  </select>
   <button id="cl-run">Run clone</button>
 </section>
 <section id="tab-create" hidden>
@@ -45,6 +50,11 @@
   <label>Year</label><input id="cr-year" type="number">
   <label>Raw rebatePayload JSON (optional — overrides template)</label><input id="cr-raw">
   <label><input type="checkbox" id="cr-e2e" checked> Then run approve-through</label>
+  <label>Submit as</label>
+  <select id="cr-submitAs">
+    <option value="srp">srp — full 4-step chain (needs srp.ReportToId = sam)</option>
+    <option value="sam">sam — auto-bypass ASM, chain starts at sdm</option>
+  </select>
   <button id="cr-run">Run create</button>
 </section>
 <pre id="log"></pre>
@@ -70,6 +80,7 @@
   $('cl-run').onclick = () => stream({
     module: $('cl-e2e').checked ? 'end-to-end-clone' : 'clone',
     apiBaseUrl: $('apiBaseUrl').value,
+    submitAs: $('cl-submitAs').value,
     source: { requestNo: $('cl-requestNo').value, version: Number($('cl-version').value), salesOrgId: $('cl-salesOrgId').value, proposalGroupId: Number($('cl-groupId').value), customerGroupId: $('cl-cg').value },
     month: Number($('cl-month').value), year: Number($('cl-year').value),
   });
@@ -77,6 +88,7 @@
   $('cr-run').onclick = () => stream({
     module: $('cr-e2e').checked ? 'end-to-end-create' : 'create',
     apiBaseUrl: $('apiBaseUrl').value,
+    submitAs: $('cr-submitAs').value,
     type: $('cr-type').value, salesOrgId: $('cr-salesOrgId').value, customerGroupId: $('cr-cg').value,
     productIds: $('cr-products').value.split(',').map((s) => s.trim()).filter(Boolean),
     month: Number($('cr-month').value), year: Number($('cr-year').value),

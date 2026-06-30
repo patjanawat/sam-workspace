@@ -16,6 +16,7 @@ Requires Node 18+. No `npm install` — zero dependencies.
 - **Approval chain (full):** either submit as `srp` with `srp.ReportToId = sam`, OR submit as `sam`
   (ASM step auto-bypasses → chain starts at `sdm`). Without the report-to link, the sam-track
   detail GET returns 403 — see the spec's Module C prerequisite.
+- Each Create/Clone form has a **Submit as** selector: `srp` (full 4-step chain — requires `srp.ReportToId = sam`) or `sam` (auto-bypasses the ASM step so the chain starts at `sdm`).
 - **Clone:** an **Approved** source proposal (Type P source also needs `SAPStatus = success`).
 - **Create:** at least one valid `productId` from `GET /rebates/options` for your chosen
   (customer group, sales org, type). Use the raw-payload field if the template can't express it.
