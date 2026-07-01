@@ -148,6 +148,12 @@ Key differences:
 17. **Duplicate routes**: `POST /requests/{id}/proposal-details` vs `POST /proposal-details/` — ทั้งสองยังใช้งานได้
 18. **`useSaveDraft.ts` ถูก comment out**: draft save ใช้ `usePatchGeneralInfo` แทน
 19. **Type S มี 3 payload**: rebate, special, accum ส่งใน request เดียว แต่ handler แยก process แต่ละ payload
+20. **ลบ range สุดท้ายของ section ต้องเคลียร์ meta เอง** (bugfix branch `clear-rebate-section-on-empty-ranges`): ใน rebate editor `components/rebate/RebateTable.tsx` → `RangesBlock.onRemove`, state ของ **ranges** (`ranges.${key}`, useFieldArray) แยกกับ **meta** (`rowsMeta.${key}.{from,to,method,includeTarget}`) และ (freight) **shipping** (`shippings.freightRebate.${colId}.{shippingPoint,shippingCondition}`) — ลบ range สุดท้าย จึง**ไม่**เคลียร์ date/method/รวมเป้า/shipping ให้อัตโนมัติ ต้อง reset เองใน `onRemove` (guard `wasLastRange = fields.length <= 1` ก่อน `remove`). Pitfalls:
+    - **รวมเป้า** = controlled `SimpleCheckboxField` (`control` prop, name `rowsMeta.${key}.includeTarget.${colId}`) → `setValue` object `{}` **ไม่** re-render checkbox; ต้อง `setValue` ที่ **exact path ราย column** = `false`
+    - **sentinel ว่าง = `'-1'`** (method + shipping) ตรงกับ default ใน `rebate.apply.ts` + add-column reset — ไม่ใช่ `null`/`undefined`
+    - **method** ของ section ที่ `methodDisabled` หรือเหลือ option เดียว (เช่น normalRebate เมื่อมี 1 method — `rebate.util.ts:82-83`) **ห้าม reset** ไม่งั้น select ที่ disabled ค้างที่ `'-1'` แก้ไม่ได้
+    - **ปลอดภัย**: Zod schema early-return เมื่อ ranges ว่าง (`rebate.schema.ts:208`, ครอบ freight shipping block 347-374 ด้วย) → reset เป็น sentinel ไม่ trigger required error
+    - **Inverse ที่มีอยู่แล้ว**: set date → `addTierIfEmpty` (RebateTable.tsx:760-775) auto-สร้าง range (fix นี้ทำฝั่งตรงข้ามให้ครบคู่)
 
 ---
 
@@ -210,6 +216,11 @@ Key differences:
 - payload section key = RebateRowKey (`specialAdditionalTHBTon`); ระวัง `summary-rebate.mapper` SECTION_KEY_MAP map ไป uiKey `specialAddTHB` (คนละตัวกับ payload key)
 - PM Max = baseline คงที่ **ไม่เปลี่ยนตามค่า new ที่แก้** (มาจาก previous) — ต่างจาก Current ที่เปลี่ยนตาม new
 - **FE isAddedPage-reset = Type R เท่านั้น** (`RebateWrapper` type-r); Type P/S ใช้ component path แยก. แต่ **BE fix (`ReindexBaselinePages` + `InjectPmMaxBaseline` + baseline query) = type-agnostic** → ครอบ Type S clone ด้วย (verified S2600032/S2600011) — อย่าสับสนสองชั้นนี้
+
+### QA verified — multi-generation clone (SAM-1810)
+- **scenario:** clone chain v0 → v1 → v2 (`J-S002-R2600013`, Type S) — เดิม v2 หน้า 1 โชว์ P.M. Max ผิด (Normal=`1` ควร `3`), หน้า 2 ถูก (`6`) → per-page ไม่ตรง baseline
+- **after fix:** P.M. Max row = baseline คงที่ทุก page + Summary (Normal `3` / Special `6` / Freight `9` / Loyalty `10`) แม้แก้ค่า `new` ต่อหน้า (หน้า2 Normal `23/22/21`, หน้า3 `33/32/31` → PM Max ยัง `3`)
+- **footer reconcile:** Current `399` = `accumulateMaxBySection` last-page-per-section (`1 + 33[p3] + 26[p2] + 29[p2] + 310[p3]`); Latest Approved `29` = baseline (`1+3+6+9+10`, คงที่ทุกหน้า); Changed `370` = `399−29` — ครบทั้ง 3 ค่า ไม่ regression (QA screenshot 2026-06-30)
 
 ---
 
