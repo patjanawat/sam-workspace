@@ -106,3 +106,10 @@ test('rejects a non-dev DB server before any DB write', async () => {
   const prodDb = { ...db, server: 'sql-prod-01' };
   await assert.rejects(() => setSapState({ db: prodDb, proposalId: GUID, sapStatus: 'success', run: async () => '1' }), /non-dev db server/i);
 });
+
+test('allowedServers lets a non-dev server through the guard', async () => {
+  const prodDb = { ...db, server: '192.168.2.10,31433', allowedServers: ['192.168.2.10'] };
+  const { run } = runner(['1']);
+  const r = await setSapState({ db: prodDb, proposalId: GUID, sapStatus: 'success', run });
+  assert.equal(r.status.applied, true);
+});

@@ -22,7 +22,7 @@ export async function setSapState({ db, proposalId, sapStatus, contractNo, run =
   if (hasStatus && !STATUS_VALUES.has(sapStatus)) throw new Error(`Invalid sapStatus "${sapStatus}" (expected success, fail, or "")`);
   if (hasContract && !CONTRACT_RE.test(contractNo)) throw new Error(`Invalid contractNo "${contractNo}"`);
 
-  assertDevDbServer(db.server);
+  assertDevDbServer(db.server, db.allowedServers);
 
   const result = {
     status: { applied: false, rows: 0 },

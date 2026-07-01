@@ -16,10 +16,12 @@ export function assertDevHost(baseUrl) {
 
 const DEV_DB_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '(local)', '.']);
 
-export function assertDevDbServer(server) {
+export function assertDevDbServer(server, allowedServers = []) {
   if (!server || typeof server !== 'string') throw new Error('db.server is required');
-  const host = server.split(',')[0].split('\\')[0].trim().toLowerCase();
-  const isDev = DEV_DB_HOSTS.has(host) || host.endsWith('.local');
+  const norm = (s) => String(s).split(',')[0].split('\\')[0].trim().toLowerCase();
+  const host = norm(server);
+  const allowed = (Array.isArray(allowedServers) ? allowedServers : []).map(norm);
+  const isDev = DEV_DB_HOSTS.has(host) || host.endsWith('.local') || allowed.includes(host);
   if (!isDev) {
     throw new Error(`Refusing to run against non-dev DB server "${server}". sam-devkit is dev-only.`);
   }

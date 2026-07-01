@@ -50,6 +50,9 @@ or seed a contract number.
 **Notes**
 - Values are written raw — SAP does not validate them. This is a dev fixup, not a real sync.
 - The DB server must be a dev host (`localhost` / `.local` / etc.) or the tool refuses to run.
+  To allow a LAN dev SQL Server (e.g. `192.168.2.10,31433`), add its host to `db.allowedServers`
+  in `config.json` (e.g. `"allowedServers": ["192.168.2.10"]`). Any server not localhost-ish
+  and not explicitly listed is still refused, so production stays protected.
 - Status and contract are independent writes across two DBs — partial success is possible and reported per step.
 
 ## Test

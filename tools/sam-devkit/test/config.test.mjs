@@ -61,3 +61,18 @@ test('loadDbConfig throws naming a missing sub-field', () => {
   const bad = { ...goodDb, db: { ...goodDb.db, sap: { database: 'x', user: 'y' } } };
   assert.throws(() => loadDbConfig(bad), /sap/);
 });
+
+test('loadDbConfig defaults allowedServers to [] when absent', () => {
+  const db = loadDbConfig(loadConfig(goodDb));
+  assert.deepEqual(db.allowedServers, []);
+});
+
+test('loadDbConfig passes through allowedServers', () => {
+  const withAllow = { ...goodDb, db: { ...goodDb.db, allowedServers: ['192.168.2.10'] } };
+  assert.deepEqual(loadDbConfig(withAllow).allowedServers, ['192.168.2.10']);
+});
+
+test('loadDbConfig rejects non-array / non-string allowedServers', () => {
+  assert.throws(() => loadDbConfig({ ...goodDb, db: { ...goodDb.db, allowedServers: 'x' } }), /allowedServers/);
+  assert.throws(() => loadDbConfig({ ...goodDb, db: { ...goodDb.db, allowedServers: [1] } }), /allowedServers/);
+});

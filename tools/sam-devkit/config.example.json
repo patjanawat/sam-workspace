@@ -9,6 +9,7 @@
   },
   "db": {
     "server": "localhost",
+    "allowedServers": [],
     "sam": { "database": "CHANGE_ME_SamDb", "user": "sa", "password": "CHANGE_ME" },
     "sap": { "database": "CHANGE_ME_SapDb", "user": "sa", "password": "CHANGE_ME" }
   }

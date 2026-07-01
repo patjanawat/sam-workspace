@@ -23,5 +23,9 @@ export function loadDbConfig(cfg) {
       throw new Error(`config.json: db.${key} needs { database, user, password }`);
     }
   }
-  return { server: db.server, sam: db.sam, sap: db.sap };
+  const allowedServers = db.allowedServers ?? [];
+  if (!Array.isArray(allowedServers) || allowedServers.some((s) => typeof s !== 'string')) {
+    throw new Error('config.json: db.allowedServers must be an array of strings');
+  }
+  return { server: db.server, sam: db.sam, sap: db.sap, allowedServers };
 }

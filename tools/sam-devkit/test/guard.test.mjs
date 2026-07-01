@@ -33,3 +33,13 @@ test('assertDevDbServer rejects remote/prod servers', () => {
 test('assertDevDbServer rejects empty', () => {
   assert.throws(() => assertDevDbServer(''), /required/i);
 });
+
+test('assertDevDbServer accepts a server listed in allowedServers (port-normalized)', () => {
+  assert.doesNotThrow(() => assertDevDbServer('192.168.2.10,31433', ['192.168.2.10']));
+  assert.doesNotThrow(() => assertDevDbServer('192.168.2.10,31433', ['192.168.2.10,31433']));
+});
+
+test('assertDevDbServer still rejects a non-dev server not in allowedServers', () => {
+  assert.throws(() => assertDevDbServer('192.168.2.10,31433', []), /non-dev db server/i);
+  assert.throws(() => assertDevDbServer('10.0.0.5', ['192.168.2.10']), /non-dev db server/i);
+});
