@@ -10,5 +10,18 @@ export function loadConfig(raw) {
       throw new Error(`config.json: role "${r}" needs { email, password }`);
     }
   }
-  return { apiBaseUrl: raw.apiBaseUrl, roles: raw.roles };
+  return { apiBaseUrl: raw.apiBaseUrl, roles: raw.roles, db: raw.db };
+}
+
+export function loadDbConfig(cfg) {
+  const db = cfg && cfg.db;
+  if (!db || typeof db !== 'object') throw new Error('config.json: missing "db" block (required for sap-fixup)');
+  if (!db.server) throw new Error('config.json: db.server is required');
+  for (const key of ['sam', 'sap']) {
+    const d = db[key];
+    if (!d || !d.database || !d.user || !d.password) {
+      throw new Error(`config.json: db.${key} needs { database, user, password }`);
+    }
+  }
+  return { server: db.server, sam: db.sam, sap: db.sap };
 }
