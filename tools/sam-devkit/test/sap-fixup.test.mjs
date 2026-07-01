@@ -89,3 +89,20 @@ test('rejects bad contractNo', async () => {
 test('rejects nothing-to-update', async () => {
   await assert.rejects(() => setSapState({ db, proposalId: GUID, run: async () => '1' }), /nothing to update/i);
 });
+
+test('contractNo null is treated as no contract (nothing-to-update throws)', async () => {
+  await assert.rejects(() => setSapState({ db, proposalId: GUID, contractNo: null, run: async () => '1' }), /nothing to update/i);
+});
+
+test('null contractNo with a valid status applies status only, no contract lookup', async () => {
+  const { run, calls } = runner(['1']);
+  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'success', contractNo: null, run });
+  assert.equal(r.status.applied, true);
+  assert.equal(r.contract.applied, false);
+  assert.equal(calls.length, 1); // only the status UPDATE — no type lookup, no contract UPDATE
+});
+
+test('rejects a non-dev DB server before any DB write', async () => {
+  const prodDb = { ...db, server: 'sql-prod-01' };
+  await assert.rejects(() => setSapState({ db: prodDb, proposalId: GUID, sapStatus: 'success', run: async () => '1' }), /non-dev db server/i);
+});

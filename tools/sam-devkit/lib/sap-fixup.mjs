@@ -17,7 +17,7 @@ const rows = (out) => Number(String(out).trim()) || 0;
 export async function setSapState({ db, proposalId, sapStatus, contractNo, run = runSql, log = () => {} }) {
   if (!GUID_RE.test(proposalId || '')) throw new Error(`Invalid proposalId (must be GUID): ${proposalId}`);
   const hasStatus = sapStatus !== undefined;
-  const hasContract = contractNo !== undefined && contractNo !== '';
+  const hasContract = contractNo !== undefined && contractNo !== null && contractNo !== '';
   if (!hasStatus && !hasContract) throw new Error('nothing to update: provide sapStatus and/or contractNo');
   if (hasStatus && !STATUS_VALUES.has(sapStatus)) throw new Error(`Invalid sapStatus "${sapStatus}" (expected success, fail, or "")`);
   if (hasContract && !CONTRACT_RE.test(contractNo)) throw new Error(`Invalid contractNo "${contractNo}"`);
@@ -57,7 +57,7 @@ export async function setSapState({ db, proposalId, sapStatus, contractNo, run =
         log(`  contract skipped: ${result.contract.skippedReason}`);
       } else {
         const { table, col } = CONTRACT_TABLE[groupId];
-        log(`set ${table}.${col}='${contractNo}' where PROPOSAL_ID=${proposalId}`);
+        log(`set ${table}.${col}='${esc(contractNo)}' where PROPOSAL_ID=${proposalId}`);
         const out = await run({ ...sap, sql: `SET NOCOUNT ON; UPDATE ${table} SET ${col}='${esc(contractNo)}' WHERE PROPOSAL_ID='${id}'; SELECT @@ROWCOUNT;` });
         result.contract = { applied: true, table, rows: rows(out), skippedReason: null };
         log(`  rows affected: ${result.contract.rows}`);
