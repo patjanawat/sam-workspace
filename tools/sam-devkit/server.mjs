@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { assertDevHost } from './lib/guard.mjs';
-import { loadConfig } from './lib/config.mjs';
+import { loadConfig, loadDbConfig } from './lib/config.mjs';
+import { setSapState } from './lib/sap-fixup.mjs';
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
 import { cloneProposal } from './lib/clone.mjs';
@@ -40,6 +41,24 @@ async function handleRun(req, res, cfg) {
   const module = input.module;
   if (typeof module !== 'string') {
     res.write('ERROR no module specified\n');
+    return res.end();
+  }
+
+  if (module === 'sap-fixup') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await setSapState({
+        db,
+        proposalId: input.proposalId,
+        sapStatus: input.sapStatus,
+        contractNo: input.contractNo,
+        log,
+      });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
+    }
     return res.end();
   }
 
