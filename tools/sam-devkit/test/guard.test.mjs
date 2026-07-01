@@ -19,7 +19,7 @@ test('rejects malformed url', () => {
 });
 
 test('assertDevDbServer accepts dev servers incl. port/instance forms', () => {
-  for (const s of ['localhost', '127.0.0.1', 'localhost,1433', 'localhost\\SQLEXPRESS', '(local)', '.', 'db.local']) {
+  for (const s of ['localhost', '127.0.0.1', 'localhost,1433', 'localhost\\SQLEXPRESS', '(local)', '.', 'db.local', '::1', 'localhost\\SQLEXPRESS,1433']) {
     assert.doesNotThrow(() => assertDevDbServer(s));
   }
 });
