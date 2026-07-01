@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertDevHost } from '../lib/guard.mjs';
+import { assertDevHost, assertDevDbServer } from '../lib/guard.mjs';
 
 test('accepts localhost variants', () => {
   for (const url of ['http://localhost:5000', 'http://127.0.0.1:5001', 'http://[::1]:5000']) {
@@ -16,4 +16,20 @@ test('rejects non-dev hosts', () => {
 
 test('rejects malformed url', () => {
   assert.throws(() => assertDevHost('not-a-url'), /invalid/i);
+});
+
+test('assertDevDbServer accepts dev servers incl. port/instance forms', () => {
+  for (const s of ['localhost', '127.0.0.1', 'localhost,1433', 'localhost\\SQLEXPRESS', '(local)', '.', 'db.local']) {
+    assert.doesNotThrow(() => assertDevDbServer(s));
+  }
+});
+
+test('assertDevDbServer rejects remote/prod servers', () => {
+  for (const s of ['sql.prod.example.com', '10.0.0.5', 'prod-sql,1433']) {
+    assert.throws(() => assertDevDbServer(s), /non-dev db server/i);
+  }
+});
+
+test('assertDevDbServer rejects empty', () => {
+  assert.throws(() => assertDevDbServer(''), /required/i);
 });
