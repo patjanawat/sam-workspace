@@ -28,6 +28,30 @@ Requires Node 18+. No `npm install` — zero dependencies.
 - CDR approval is async (Hangfire) — the tool reports the `jobId`; SAP sync completes in the background.
 - ⚠️ Not yet exercised against a live SAM API — the test suite is unit-only (fake fetch). The first real run is effectively the integration test; verify create/clone/approve against your dev backend before relying on it.
 
+## SAP fixup (direct DB — dev only)
+
+Force-set a proposal's SAP state without the real SAP integration. Useful to make a
+Type P approved proposal a valid clone source (`SAPStatus = success`), simulate `fail`,
+or seed a contract number.
+
+**Prerequisites**
+- `sqlcmd` on PATH (SQL Server command-line tools).
+- A `db` block in `config.json` (see `config.example.json`) pointing at your **dev** SQL Server.
+  Two databases: `sam` (main — `Proposal.SAPStatus`) and `sap` (`CreateContract` / `ChangeContract`).
+
+**What it writes**
+- `SAPStatus` → main DB `Proposal.SAPStatus` (`success` / `fail` / clear).
+- Contract number → SAP DB, table auto-detected from the proposal's type:
+  - Type P → `CreateContract.SAP_CONTRACT_NO`
+  - Type S → `ChangeContract.CONTRACT_NO`
+  - Type R → no contract table (status is still updated).
+- The contract UPDATE affects **all rows** for that `PROPOSAL_ID`; the tool reports rows affected.
+
+**Notes**
+- Values are written raw — SAP does not validate them. This is a dev fixup, not a real sync.
+- The DB server must be a dev host (`localhost` / `.local` / etc.) or the tool refuses to run.
+- Status and contract are independent writes across two DBs — partial success is possible and reported per step.
+
 ## Test
 ```bash
 node --test

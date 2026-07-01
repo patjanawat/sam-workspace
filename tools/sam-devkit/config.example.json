@@ -6,5 +6,10 @@
     "sdm": { "email": "sdm@example.com", "password": "CHANGE_ME" },
     "pte": { "email": "pte@example.com", "password": "CHANGE_ME" },
     "cdr": { "email": "cdr@example.com", "password": "CHANGE_ME" }
+  },
+  "db": {
+    "server": "localhost",
+    "sam": { "database": "CHANGE_ME_SamDb", "user": "sa", "password": "CHANGE_ME" },
+    "sap": { "database": "CHANGE_ME_SapDb", "user": "sa", "password": "CHANGE_ME" }
   }
 }
