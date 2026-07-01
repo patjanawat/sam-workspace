@@ -1,0 +1,72 @@
+import { assertDevDbServer } from './guard.mjs';
+import { runSql } from './db.mjs';
+
+const GUID_RE = /^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
+const STATUS_VALUES = new Set(['success', 'fail', '']);
+const CONTRACT_RE = /^[A-Za-z0-9_\-/]{0,50}$/;
+
+// whitelist — table/column names are never taken from user input
+const CONTRACT_TABLE = {
+  1: { table: 'CreateContract', col: 'SAP_CONTRACT_NO' }, // Type P
+  3: { table: 'ChangeContract', col: 'CONTRACT_NO' },     // Type S
+};
+
+const esc = (v) => String(v).replace(/'/g, "''");
+const rows = (out) => Number(String(out).trim()) || 0;
+
+export async function setSapState({ db, proposalId, sapStatus, contractNo, run = runSql, log = () => {} }) {
+  if (!GUID_RE.test(proposalId || '')) throw new Error(`Invalid proposalId (must be GUID): ${proposalId}`);
+  const hasStatus = sapStatus !== undefined;
+  const hasContract = contractNo !== undefined && contractNo !== '';
+  if (!hasStatus && !hasContract) throw new Error('nothing to update: provide sapStatus and/or contractNo');
+  if (hasStatus && !STATUS_VALUES.has(sapStatus)) throw new Error(`Invalid sapStatus "${sapStatus}" (expected success, fail, or "")`);
+  if (hasContract && !CONTRACT_RE.test(contractNo)) throw new Error(`Invalid contractNo "${contractNo}"`);
+
+  assertDevDbServer(db.server);
+
+  const result = {
+    status: { applied: false, rows: 0 },
+    contract: { applied: false, table: null, rows: 0, skippedReason: null },
+  };
+  const sam = { server: db.server, ...db.sam };
+  const sap = { server: db.server, ...db.sap };
+  const id = esc(proposalId);
+
+  if (hasStatus) {
+    try {
+      log(`set Proposal.SAPStatus='${sapStatus}' where Id=${proposalId}`);
+      const out = await run({ ...sam, sql: `SET NOCOUNT ON; UPDATE Proposal SET SAPStatus='${esc(sapStatus)}' WHERE Id='${id}'; SELECT @@ROWCOUNT;` });
+      result.status = { applied: true, rows: rows(out) };
+      log(`  rows affected: ${result.status.rows}`);
+    } catch (e) {
+      result.status = { applied: false, rows: 0, error: e.message };
+      log(`  status FAILED: ${e.message}`);
+    }
+  }
+
+  if (hasContract) {
+    try {
+      log('lookup proposal type');
+      const typeOut = await run({ ...sam, sql: `SET NOCOUNT ON; SELECT ProposalGroupId FROM Proposal WHERE Id='${id}';` });
+      const groupId = Number(String(typeOut).trim());
+      if (!groupId) {
+        result.contract.skippedReason = 'proposal not found';
+        log('  contract skipped: proposal not found');
+      } else if (!CONTRACT_TABLE[groupId]) {
+        result.contract.skippedReason = `ProposalGroupId=${groupId} has no SAP contract table`;
+        log(`  contract skipped: ${result.contract.skippedReason}`);
+      } else {
+        const { table, col } = CONTRACT_TABLE[groupId];
+        log(`set ${table}.${col}='${contractNo}' where PROPOSAL_ID=${proposalId}`);
+        const out = await run({ ...sap, sql: `SET NOCOUNT ON; UPDATE ${table} SET ${col}='${esc(contractNo)}' WHERE PROPOSAL_ID='${id}'; SELECT @@ROWCOUNT;` });
+        result.contract = { applied: true, table, rows: rows(out), skippedReason: null };
+        log(`  rows affected: ${result.contract.rows}`);
+      }
+    } catch (e) {
+      result.contract = { ...result.contract, applied: false, error: e.message };
+      log(`  contract FAILED: ${e.message}`);
+    }
+  }
+
+  return result;
+}
