@@ -19,6 +19,7 @@
   <button data-tab="approve">Approve-through</button>
   <button data-tab="clone">Clone → approve</button>
   <button data-tab="create">Create → approve</button>
+  <button data-tab="sapfix">SAP fixup</button>
 </nav>
 <section id="tab-approve">
   <label>Proposal ID (Pending)</label>
@@ -57,13 +58,25 @@
   </select>
   <button id="cr-run">Run create</button>
 </section>
+<section id="tab-sapfix" hidden>
+  <label>Proposal ID (guid)</label><input id="sf-proposalId">
+  <label>SAP status</label>
+  <select id="sf-status">
+    <option value="__leave__">— leave unchanged —</option>
+    <option value="success">success</option>
+    <option value="fail">fail</option>
+    <option value="">(clear)</option>
+  </select>
+  <label>Contract number (optional)</label><input id="sf-contractNo">
+  <button id="sf-run">Run SAP fixup</button>
+</section>
 <pre id="log"></pre>
 <script>
   const $ = (id) => document.getElementById(id);
   fetch('/config').then((r) => r.json()).then((c) => { $('apiBaseUrl').value = c.apiBaseUrl || ''; });
 
   function show(tab) {
-    for (const s of ['approve', 'clone', 'create']) $('tab-' + s).hidden = (s !== tab);
+    for (const s of ['approve', 'clone', 'create', 'sapfix']) $('tab-' + s).hidden = (s !== tab);
   }
   document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => show(b.dataset.tab); });
   show('approve');
@@ -94,4 +107,13 @@
     month: Number($('cr-month').value), year: Number($('cr-year').value),
     rawPayload: $('cr-raw').value ? { rebatePayload: $('cr-raw').value } : undefined,
   });
+
+  $('sf-run').onclick = () => {
+    const status = $('sf-status').value;
+    const body = { module: 'sap-fixup', apiBaseUrl: $('apiBaseUrl').value, proposalId: $('sf-proposalId').value };
+    if (status !== '__leave__') body.sapStatus = status;
+    const cn = $('sf-contractNo').value.trim();
+    if (cn) body.contractNo = cn;
+    stream(body);
+  };
 </script>
