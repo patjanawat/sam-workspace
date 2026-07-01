@@ -157,3 +157,6 @@ vite.config.ts.timestamp-*
 .playwright-mcp/
 
 tools/sam-devkit/config.json
+
+# Obsidian vault config (machine-specific)
+.obsidian/

@@ -89,7 +89,8 @@ Role permissions and default landing pages defined in `src/shared/constants/perm
 | `src/shared/constants/permissions.ts` | Role → allowed paths + default landing page mapping |
 | `src/app/login/` | Login page + form |
 | `src/server/` | Server actions + API client (reads token cookie, calls gateway) |
-| `src/app/api/gateway/proxy/[...path]/route.ts` | Reverse proxy — injects Authorization header |
+| `src/app/gateway/proxy/[...path]/route.ts` | Reverse proxy route handler (exports GET/POST/PUT/PATCH/DELETE/OPTIONS/HEAD) → delegates to `server/proxy/handler.ts` |
+| `src/server/proxy/handler.ts` | Proxy core — builds upstream URL from `BACKEND_URL`/`NEXT_BACKEND_URL`, injects `Authorization` from cookie, forwards method+body, sends `x-forwarded-proto` |
 
 ---
 
@@ -120,6 +121,11 @@ Role permissions and default landing pages defined in `src/shared/constants/perm
 6. **Cookie maxAge = 3600s**: hardcoded in cookies-next call. If `AccessTokenExpireHours` on BE is longer, FE cookie expires first. If shorter, BE rejects valid-looking cookie token.
 
 7. **Proxy route is catch-all**: `/gateway/proxy/[...path]` — all API endpoints are relative paths under this. Adding a new BE endpoint requires no FE proxy config changes.
+
+8. **⚠️ Deploy gotcha — login POST 405 behind IIS**: BE `Program.cs` has `app.UseHttpsRedirection()`. When BE runs on IIS (IIS terminates TLS, forwards to Kestrel as **http**) **without** `app.UseForwardedHeaders`, .NET reads the request scheme as http and issues an HTTPS redirect on the login POST → flow breaks (surfaces as 405 / failed login). The proxy already sends `x-forwarded-proto` (`server/proxy/handler.ts`), but the BE pipeline doesn't consume it.
+   - **Fix applied**: commented out `app.UseHttpsRedirection()` — safe because public TLS is enforced at IIS.
+   - **Cleaner alternative**: add `app.UseForwardedHeaders(ForwardedHeaders.XForwardedProto)` *before* `UseHttpsRedirection` and keep the redirect.
+   - **Not** caused by IIS WebDAVModule (initial hypothesis, ruled out — paths aligned, would be 404 not 405 if mismatched).
 
 ---
 
