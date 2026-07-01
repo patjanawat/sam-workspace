@@ -26,6 +26,7 @@ Requires Node 18+. No `npm install` — zero dependencies.
   first 401; fix `config.json` before re-running.
 - `proposalGroupId` mapping is **P=1, R=2, S=3**.
 - CDR approval is async (Hangfire) — the tool reports the `jobId`; SAP sync completes in the background.
+- ⚠️ Not yet exercised against a live SAM API — the test suite is unit-only (fake fetch). The first real run is effectively the integration test; verify create/clone/approve against your dev backend before relying on it.
 
 ## Test
 ```bash

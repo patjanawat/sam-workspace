@@ -37,6 +37,11 @@ async function handleRun(req, res, cfg) {
     return res.end();
   }
   const apiBaseUrl = input.apiBaseUrl || cfg.apiBaseUrl;
+  const module = input.module;
+  if (typeof module !== 'string') {
+    res.write('ERROR no module specified\n');
+    return res.end();
+  }
 
   try {
     assertDevHost(apiBaseUrl);
@@ -45,7 +50,7 @@ async function handleRun(req, res, cfg) {
     const submitter = input.submitAs === 'sam' ? cfg.roles.sam : cfg.roles.srp;
     let proposalId = input.proposalId;
 
-    if (input.module === 'create' || input.module === 'end-to-end-create') {
+    if (module === 'create' || module === 'end-to-end-create') {
       const r = await createProposal({
         client, account: submitter, type: input.type, salesOrgId: input.salesOrgId,
         customerGroupId: input.customerGroupId, month: input.month, year: input.year,
@@ -53,7 +58,7 @@ async function handleRun(req, res, cfg) {
       });
       proposalId = r.proposalId;
       res.write(`CREATED ${JSON.stringify(r)}\n`);
-    } else if (input.module === 'clone' || input.module === 'end-to-end-clone') {
+    } else if (module === 'clone' || module === 'end-to-end-clone') {
       const r = await cloneProposal({
         client, account: submitter, source: input.source, month: input.month, year: input.year, log,
       });
@@ -61,13 +66,14 @@ async function handleRun(req, res, cfg) {
       res.write(`CREATED ${JSON.stringify(r)}\n`);
     }
 
-    if (input.module === 'approve' || input.module.startsWith('end-to-end')) {
+    if (module === 'approve' || module.startsWith('end-to-end')) {
+      if (!proposalId) { res.write('ERROR no proposalId to approve\n'); return res.end(); }
       const result = await approveThrough({ client, accounts: cfg.roles, proposalId, log });
       res.write('RESULT ' + JSON.stringify(result) + '\n');
-    } else if (input.module === 'create' || input.module === 'clone') {
+    } else if (module === 'create' || module === 'clone') {
       res.write('RESULT ' + JSON.stringify({ proposalId }) + '\n');
     } else {
-      res.write(`RESULT ${JSON.stringify({ error: `unknown module "${input.module}"` })}\n`);
+      res.write(`RESULT ${JSON.stringify({ error: `unknown module "${module}"` })}\n`);
     }
   } catch (e) {
     // LoginError / ApiError carry .status and .bodyText for a useful message

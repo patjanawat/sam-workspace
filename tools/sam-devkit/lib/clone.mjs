@@ -1,7 +1,3 @@
-export function nextValidMonthYear(now) {
-  return { month: now.getMonth() + 1, year: now.getFullYear() };
-}
-
 function dropEmpty(obj) {
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
