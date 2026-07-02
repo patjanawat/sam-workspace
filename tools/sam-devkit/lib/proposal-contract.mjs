@@ -1,9 +1,7 @@
-import { writeFile, unlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { assertDevDbServer } from './guard.mjs';
 import { runSql, runSqlFile, runSqlWide } from './db.mjs';
 import { upsertContractByProductId, upsertContractForAllProducts } from './json-contract.mjs';
+import { writeTempSql } from './temp-sql.mjs';
 
 const GUID_RE = /^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
 const CONTRACT_RE = /^[A-Za-z0-9_\-/]{1,16}$/;   // ProposalProductTypeP.CONTRACT is nvarchar(16)
@@ -12,17 +10,9 @@ const PRODUCT_RE = /^[A-Za-z0-9_\-/.]{1,16}$/;
 const esc = (v) => String(v).replace(/'/g, "''");
 const rows = (out) => Number(String(out).trim()) || 0;
 
-// default temp writer: writes a UTF-8 .sql file, returns its path + a cleanup fn
-async function defaultWriteTemp(contents) {
-  // Date.now/Math.random are unavailable in some sandboxes but this file runs in the real server process.
-  const path = join(tmpdir(), `sam-devkit-${process.pid}-${Date.now()}.sql`);
-  await writeFile(path, contents, 'utf8');
-  return { path, cleanup: () => unlink(path).catch(() => {}) };
-}
-
 export async function setProposalContract({
   db, proposalId, contractNo, productCode,
-  run = runSql, runFile = runSqlFile, readWide = runSqlWide, writeTemp = defaultWriteTemp, log = () => {},
+  run = runSql, runFile = runSqlFile, readWide = runSqlWide, writeTemp = writeTempSql, log = () => {},
 }) {
   if (!GUID_RE.test(proposalId || '')) throw new Error(`Invalid proposalId (must be GUID): ${proposalId}`);
   if (contractNo === undefined || contractNo === null || contractNo === '') throw new Error('contractNo is required');

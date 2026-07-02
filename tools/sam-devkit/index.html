@@ -69,7 +69,9 @@
     <option value="fail">fail</option>
     <option value="">(clear)</option>
   </select>
-  <label>Contract number (optional)</label><input id="sf-contractNo">
+  <label>Contract number (optional)</label>
+  <input id="sf-contractNo">
+  <button id="sf-random" type="button">🎲 Random (11 digits)</button>
   <button id="sf-run">Run SAP fixup</button>
 </section>
 <pre id="log"></pre>
@@ -123,6 +125,12 @@
     month: Number($('cr-month').value), year: Number($('cr-year').value),
     rawPayload: $('cr-raw').value ? { rebatePayload: $('cr-raw').value } : undefined,
   });
+
+  $('sf-random').onclick = () => {
+    let s = '';
+    for (let i = 0; i < 11; i++) s += Math.floor(Math.random() * 10);
+    $('sf-contractNo').value = s;
+  };
 
   $('sf-run').onclick = () => {
     const status = $('sf-status').value;

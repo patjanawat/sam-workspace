@@ -19,7 +19,7 @@ function runner(outputs) {
 
 test('status-only updates Proposal on sam db and reports rows', async () => {
   const { run, calls } = runner(['1']);
-  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'success', run });
+  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'success', run, readWide: async () => '' });
   assert.equal(r.status.applied, true);
   assert.equal(r.status.rows, 1);
   assert.equal(calls.length, 1);
@@ -29,7 +29,7 @@ test('status-only updates Proposal on sam db and reports rows', async () => {
 
 test('contract update auto-detects Type P -> CreateContract.SAP_CONTRACT_NO on sap db', async () => {
   const { run, calls } = runner(['1', '2']); // [type lookup=1(P), update rowcount=2]
-  const r = await setSapState({ db, proposalId: GUID, contractNo: 'C-500', run });
+  const r = await setSapState({ db, proposalId: GUID, contractNo: 'C-500', run, readWide: async () => '' });
   assert.equal(r.contract.applied, true);
   assert.equal(r.contract.table, 'CreateContract');
   assert.equal(r.contract.rows, 2);
@@ -40,14 +40,14 @@ test('contract update auto-detects Type P -> CreateContract.SAP_CONTRACT_NO on s
 
 test('Type S -> ChangeContract.CONTRACT_NO', async () => {
   const { run, calls } = runner(['3', '1']); // type=3(S)
-  const r = await setSapState({ db, proposalId: GUID, contractNo: 'C-9', run });
+  const r = await setSapState({ db, proposalId: GUID, contractNo: 'C-9', run, readWide: async () => '' });
   assert.equal(r.contract.table, 'ChangeContract');
   assert.match(calls[1].sql, /UPDATE ChangeContract SET CONTRACT_NO='C-9'/);
 });
 
 test('Type R skips contract with a reason, but status still applied', async () => {
   const { run, calls } = runner(['1', '2']); // status update=1row, then type lookup=2(R)
-  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'fail', contractNo: 'C-1', run });
+  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'fail', contractNo: 'C-1', run, readWide: async () => '' });
   assert.equal(r.status.applied, true);
   assert.equal(r.contract.applied, false);
   assert.match(r.contract.skippedReason, /no SAP contract table/i);
@@ -56,7 +56,7 @@ test('Type R skips contract with a reason, but status still applied', async () =
 
 test('proposal not found -> contract skipped with reason', async () => {
   const { run } = runner(['']); // empty type lookup
-  const r = await setSapState({ db, proposalId: GUID, contractNo: 'C-1', run });
+  const r = await setSapState({ db, proposalId: GUID, contractNo: 'C-1', run, readWide: async () => '' });
   assert.equal(r.contract.applied, false);
   assert.match(r.contract.skippedReason, /not found/i);
 });
@@ -68,7 +68,7 @@ test('partial success: status ok, contract runner throws -> reported per-step', 
     if (/UPDATE Proposal/.test(sql)) return '1';
     throw new Error('boom on lookup');
   };
-  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'success', contractNo: 'C-1', run });
+  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'success', contractNo: 'C-1', run, readWide: async () => '' });
   assert.equal(r.status.applied, true);
   assert.equal(r.contract.applied, false);
   assert.match(r.contract.error, /boom/);
@@ -96,7 +96,7 @@ test('contractNo null is treated as no contract (nothing-to-update throws)', asy
 
 test('null contractNo with a valid status applies status only, no contract lookup', async () => {
   const { run, calls } = runner(['1']);
-  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'success', contractNo: null, run });
+  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'success', contractNo: null, run, readWide: async () => '' });
   assert.equal(r.status.applied, true);
   assert.equal(r.contract.applied, false);
   assert.equal(calls.length, 1); // only the status UPDATE — no type lookup, no contract UPDATE
@@ -110,6 +110,65 @@ test('rejects a non-dev DB server before any DB write', async () => {
 test('allowedServers lets a non-dev server through the guard', async () => {
   const prodDb = { ...db, server: '192.168.2.10,31433', allowedServers: ['192.168.2.10'] };
   const { run } = runner(['1']);
-  const r = await setSapState({ db: prodDb, proposalId: GUID, sapStatus: 'success', run });
+  const r = await setSapState({ db: prodDb, proposalId: GUID, sapStatus: 'success', run, readWide: async () => '' });
   assert.equal(r.status.applied, true);
+});
+
+const PAYLOAD_2P = JSON.stringify({
+  products: [{ colId: 'col-1', productId: 'P100' }, { colId: 'col-2', productId: 'P200' }],
+  values: { contract: {} },
+});
+
+test('payload step upserts contract into RebatePayload for all products (via temp file)', async () => {
+  const written = [];
+  const r = await setSapState({
+    db, proposalId: GUID, contractNo: 'C-777',
+    run: async () => '3',                       // type=S; contract table update also runs
+    readWide: async () => PAYLOAD_2P,
+    writeTemp: async (sql) => { written.push(sql); return { path: '/tmp/f.sql', cleanup: async () => {} }; },
+    runFile: async () => '1',
+  });
+  assert.equal(r.payload.applied, true);
+  assert.equal(r.payload.updated, 2);          // both products
+  assert.equal(r.payload.rows, 1);
+  assert.match(written[0], /UPDATE dbo\.ProposalDetail SET RebatePayload=/);
+  assert.match(written[0], /col-1/);
+  assert.match(written[0], /col-2/);
+  assert.match(written[0], /C-777/);
+});
+
+test('payload step skipped when RebatePayload is empty', async () => {
+  const r = await setSapState({ db, proposalId: GUID, contractNo: 'C-1', run: async () => '1', readWide: async () => '' });
+  assert.equal(r.payload.applied, false);
+  assert.match(r.payload.skippedReason, /no RebatePayload/i);
+});
+
+test('payload step skipped when payload has no products', async () => {
+  const r = await setSapState({
+    db, proposalId: GUID, contractNo: 'C-1', run: async () => '1',
+    readWide: async () => JSON.stringify({ products: [], values: {} }),
+  });
+  assert.equal(r.payload.applied, false);
+  assert.match(r.payload.skippedReason, /no products/i);
+});
+
+test('payload step failure is isolated — status still applied', async () => {
+  const r = await setSapState({
+    db, proposalId: GUID, sapStatus: 'success', contractNo: 'C-1',
+    run: async () => '1',
+    readWide: async () => { throw new Error('read boom'); },
+  });
+  assert.equal(r.status.applied, true);
+  assert.match(r.payload.error, /read boom/);
+});
+
+test('no contract → payload step does not run', async () => {
+  let readWideCalled = false;
+  const { run } = runner(['1']);
+  const r = await setSapState({
+    db, proposalId: GUID, sapStatus: 'success', run,
+    readWide: async () => { readWideCalled = true; return ''; },
+  });
+  assert.equal(r.payload.applied, false);
+  assert.equal(readWideCalled, false);         // gated on hasContract
 });

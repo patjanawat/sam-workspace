@@ -1,5 +1,7 @@
 import { assertDevDbServer } from './guard.mjs';
-import { runSql } from './db.mjs';
+import { runSql, runSqlFile, runSqlWide } from './db.mjs';
+import { upsertContractForAllProducts } from './json-contract.mjs';
+import { writeTempSql } from './temp-sql.mjs';
 
 const GUID_RE = /^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
 const STATUS_VALUES = new Set(['success', 'fail', '']);
@@ -14,7 +16,10 @@ const CONTRACT_TABLE = {
 const esc = (v) => String(v).replace(/'/g, "''");
 const rows = (out) => Number(String(out).trim()) || 0;
 
-export async function setSapState({ db, proposalId, sapStatus, contractNo, run = runSql, log = () => {} }) {
+export async function setSapState({
+  db, proposalId, sapStatus, contractNo,
+  run = runSql, runFile = runSqlFile, readWide = runSqlWide, writeTemp = writeTempSql, log = () => {},
+}) {
   if (!GUID_RE.test(proposalId || '')) throw new Error(`Invalid proposalId (must be GUID): ${proposalId}`);
   const hasStatus = sapStatus !== undefined;
   const hasContract = contractNo !== undefined && contractNo !== null && contractNo !== '';
@@ -27,6 +32,7 @@ export async function setSapState({ db, proposalId, sapStatus, contractNo, run =
   const result = {
     status: { applied: false, rows: 0 },
     contract: { applied: false, table: null, rows: 0, skippedReason: null },
+    payload: { applied: false, rows: 0, updated: 0, skippedReason: null },
   };
   const sam = { server: db.server, ...db.sam };
   const sap = { server: db.server, ...db.sap };
@@ -65,6 +71,39 @@ export async function setSapState({ db, proposalId, sapStatus, contractNo, run =
     } catch (e) {
       result.contract = { ...result.contract, applied: false, error: e.message };
       log(`  contract FAILED: ${e.message}`);
+    }
+  }
+
+  // Write the contract into ProposalDetail.RebatePayload JSON (all products).
+  if (hasContract) {
+    try {
+      log('read ProposalDetail.RebatePayload');
+      const payloadJson = await readWide({ ...sam, sql: `SET NOCOUNT ON; SELECT RebatePayload FROM dbo.ProposalDetail WHERE ProposalId='${id}';` });
+      if (!payloadJson || !payloadJson.trim()) {
+        result.payload.skippedReason = 'no RebatePayload (detail missing or empty)';
+        log(`  payload skipped: ${result.payload.skippedReason}`);
+      } else {
+        const payload = JSON.parse(payloadJson);
+        const updated = upsertContractForAllProducts(payload, contractNo);
+        if (updated === 0) {
+          result.payload.skippedReason = 'no products in payload';
+          log(`  payload skipped: ${result.payload.skippedReason}`);
+        } else {
+          const newJson = JSON.stringify(payload);
+          const sql = `SET NOCOUNT ON; UPDATE dbo.ProposalDetail SET RebatePayload='${esc(newJson)}' WHERE ProposalId='${id}'; SELECT @@ROWCOUNT;`;
+          const tmp = await writeTemp(sql);
+          try {
+            const out = await runFile({ ...sam, file: tmp.path });
+            result.payload = { applied: true, rows: rows(out), updated, skippedReason: null };
+            log(`  payload rows affected: ${result.payload.rows} (products updated: ${updated})`);
+          } finally {
+            await tmp.cleanup();
+          }
+        }
+      }
+    } catch (e) {
+      result.payload = { ...result.payload, applied: false, error: e.message };
+      log(`  payload FAILED: ${e.message}`);
     }
   }
 
