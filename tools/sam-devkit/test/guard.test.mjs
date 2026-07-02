@@ -18,6 +18,16 @@ test('rejects malformed url', () => {
   assert.throws(() => assertDevHost('not-a-url'), /invalid/i);
 });
 
+test('accepts a host listed in allowedHosts (case-insensitive)', () => {
+  assert.doesNotThrow(() => assertDevHost('https://web-sam-qa.manaosoftware.com/api', ['web-sam-qa.manaosoftware.com']));
+  assert.doesNotThrow(() => assertDevHost('https://WEB-SAM-QA.manaosoftware.com/api', ['web-sam-qa.manaosoftware.com']));
+});
+
+test('still rejects a non-dev host not in allowedHosts', () => {
+  assert.throws(() => assertDevHost('https://web-sam-qa.manaosoftware.com/api', []), /dev host/i);
+  assert.throws(() => assertDevHost('https://web-sam.manaosoftware.com/api', ['web-sam-qa.manaosoftware.com']), /dev host/i);
+});
+
 test('assertDevDbServer accepts dev servers incl. port/instance forms', () => {
   for (const s of ['localhost', '127.0.0.1', 'localhost,1433', 'localhost\\SQLEXPRESS', '(local)', '.', 'db.local', '::1', 'localhost\\SQLEXPRESS,1433']) {
     assert.doesNotThrow(() => assertDevDbServer(s));

@@ -10,7 +10,11 @@ export function loadConfig(raw) {
       throw new Error(`config.json: role "${r}" needs { email, password }`);
     }
   }
-  return { apiBaseUrl: raw.apiBaseUrl, roles: raw.roles, db: raw.db };
+  const allowedHosts = raw.allowedHosts ?? [];
+  if (!Array.isArray(allowedHosts) || allowedHosts.some((h) => typeof h !== 'string')) {
+    throw new Error('config.json: allowedHosts must be an array of strings');
+  }
+  return { apiBaseUrl: raw.apiBaseUrl, roles: raw.roles, db: raw.db, allowedHosts };
 }
 
 export function loadDbConfig(cfg) {

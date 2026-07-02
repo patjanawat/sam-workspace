@@ -82,7 +82,7 @@ async function handleRun(req, res, cfg) {
   }
 
   try {
-    assertDevHost(apiBaseUrl);
+    assertDevHost(apiBaseUrl, cfg.allowedHosts);
     const client = createClient({ baseUrl: apiBaseUrl });
 
     const submitter = input.submitAs === 'sam' ? cfg.roles.sam : cfg.roles.srp;
@@ -136,7 +136,7 @@ const server = http.createServer(async (req, res) => {
       return await handleRun(req, res, cfg);
     }
     if (req.method === 'GET' && req.url === '/options') {
-      assertDevHost(cfg.apiBaseUrl);
+      assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
       const client = createClient({ baseUrl: cfg.apiBaseUrl });
       const { token } = await client.login(cfg.roles.srp);
       const options = await client.get('/requests/options', token);
