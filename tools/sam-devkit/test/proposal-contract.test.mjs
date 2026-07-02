@@ -93,3 +93,27 @@ test('rejects non-dev server before any DB write', async () => {
   const prodDb = { ...db, server: 'sql-prod-01' };
   await assert.rejects(() => setProposalContract({ db: prodDb, proposalId: GUID, contractNo: 'C-1', run: async () => '1', runFile: async () => '1' }), /non-dev db server/i);
 });
+
+test('temp file is cleaned up even when runFile throws', async () => {
+  let cleaned = false;
+  const writeTemp = async () => ({ path: '/tmp/fake.sql', cleanup: async () => { cleaned = true; } });
+  const run = async ({ sql }) => (/SELECT RebatePayload/.test(sql) ? PAYLOAD : '1');
+  const runFile = async () => { throw new Error('runfile boom'); };
+  const r = await setProposalContract({ db, proposalId: GUID, contractNo: 'C-1', productCode: 'P100', run, runFile, writeTemp });
+  assert.equal(cleaned, true, 'cleanup() must run even when runFile throws');
+  assert.equal(r.json.applied, false);
+  assert.match(r.json.error, /runfile boom/);
+});
+
+test('partial success: column applies, json step throws → reported per-step', async () => {
+  const run = async ({ sql }) => {
+    if (/UPDATE dbo\.ProposalProductTypeP/.test(sql)) return '1';       // column OK
+    if (/SELECT RebatePayload/.test(sql)) throw new Error('select boom'); // json read fails
+    return '1';
+  };
+  const { writeTemp } = tempWriter();
+  const r = await setProposalContract({ db, proposalId: GUID, contractNo: 'C-1', run, runFile: async () => '1', writeTemp });
+  assert.equal(r.column.applied, true);
+  assert.equal(r.json.applied, false);
+  assert.match(r.json.error, /select boom/);
+});
