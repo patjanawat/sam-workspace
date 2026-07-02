@@ -158,6 +158,9 @@ vite.config.ts.timestamp-*
 
 tools/sam-devkit/config.json
 
+# Claude design export — 512KB blob, local visual reference only (extracted specs are committed)
+tools/sam-devkit/design/mockup.html
+
 # Obsidian vault config (machine-specific)
 .obsidian/
 tools/sam-devkit/dist/

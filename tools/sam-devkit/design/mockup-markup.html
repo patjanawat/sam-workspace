@@ -1,0 +1,355 @@
+<!-- Extracted from Claude design export — template markup with {{ bindings }}, reference only. -->
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  input{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes blink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+  @keyframes fadein{from{opacity:0;transform:translateY(2px);}to{opacity:1;transform:none;}}
+  @keyframes slidein{from{transform:translateX(100%);}to{transform:none;}}
+  details > summary::-webkit-details-marker{display:none;}
+  ::selection{background:color-mix(in srgb, var(--accent,#4f46e5) 22%, transparent);}
+  .devkit-scroll::-webkit-scrollbar{width:10px;height:10px;}
+  .devkit-scroll::-webkit-scrollbar-thumb{background:#d0d5dd;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+  .console-scroll::-webkit-scrollbar{width:10px;}
+  .console-scroll::-webkit-scrollbar-thumb{background:#30363d;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+</style>
+</helmet>
+
+
+
+<div style="--accent: {{ accent }}; height:100vh; display:flex; flex-direction:column; background:#f6f7f9; font-family:'IBM Plex Sans',system-ui,sans-serif; color:#1a1d23; overflow:hidden;">
+
+  <!-- TOP BAR -->
+  <header style="display:flex; align-items:center; gap:18px; padding:12px 22px; background:#ffffff; border-bottom:1px solid #e7e9ee; flex:none; z-index:2;">
+    <div style="display:flex; align-items:center; gap:11px;">
+      <div style="width:34px; height:34px; border-radius:9px; background:var(--accent,#4f46e5); display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px color-mix(in srgb, var(--accent,#4f46e5) 40%, transparent);">
+        <span style="font:600 15px 'IBM Plex Mono',monospace; color:#fff; transform:translateY(-1px);">&gt;_</span>
+      </div>
+      <div style="display:flex; flex-direction:column; line-height:1.1;">
+        <span style="font:700 15px 'IBM Plex Sans'; letter-spacing:-0.01em;">sam-devkit</span>
+        <span style="font:500 10.5px 'IBM Plex Mono',monospace; color:#8a92a1; letter-spacing:0.02em; margin-top:2px;">approval workflow console</span>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:3px; background:#f1f3f5; border:1px solid #e7e9ee; border-radius:10px; padding:3px;">
+      <sc-for list="{{ envOptions }}" as="opt" hint-placeholder-count="3">
+        <button type="button" onclick="{{ opt.onClick }}" style="display:flex; align-items:center; gap:7px; padding:5px 12px; border-radius:7px; font:600 12.5px 'IBM Plex Sans'; color: {{ opt.fg }}; background: {{ opt.bg }}; box-shadow: {{ opt.shadow }}; transition:all .12s ease;">
+          <span style="width:7px; height:7px; border-radius:50%; background: {{ opt.dot }}; flex:none;"></span>{{ opt.label }}
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="flex:1;"></div>
+
+    <div style="display:flex; align-items:center; gap:9px; background:#f8f9fb; border:1px solid #e7e9ee; border-radius:9px; padding:6px 8px 6px 12px; max-width:440px;">
+      <span style="width:7px; height:7px; border-radius:50%; background:#3fb950; box-shadow:0 0 0 3px rgba(63,185,80,.18); flex:none;"></span>
+      <span style="font:400 12px 'IBM Plex Mono',monospace; color:#475467; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ apiBaseUrl }}</span>
+      <button type="button" onclick="{{ copyUrl }}" title="Copy API base URL" style="flex:none; padding:4px 8px; border-radius:6px; font:600 10.5px 'IBM Plex Mono',monospace; color:#667085; background:#ffffff; border:1px solid #e7e9ee;" style-hover="color: var(--accent,#4f46e5); border-color: var(--accent,#4f46e5);">{{ urlCopyLabel }}</button>
+    </div>
+
+    <button type="button" onclick="{{ openSettings }}" title="Settings" style="flex:none; width:38px; height:38px; border-radius:10px; background:#f8f9fb; border:1px solid #e7e9ee; display:flex; align-items:center; justify-content:center; color:#667085; font-size:17px; line-height:1;" style-hover="color: var(--accent,#4f46e5); border-color: var(--accent,#4f46e5);">⚙</button>
+  </header>
+
+  <!-- MAIN -->
+  <main style="flex:1; display:grid; grid-template-columns:384px 1fr; gap:20px; padding:20px 22px; min-height:0;">
+
+    <!-- LEFT: CONFIG -->
+    <section class="devkit-scroll" style="background:#ffffff; border:1px solid #e7e9ee; border-radius:14px; padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:22px; box-shadow:0 1px 2px rgba(16,24,40,.04);">
+
+      <!-- Proposal -->
+      <div>
+        <div style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; margin-bottom:11px;">Proposal</div>
+
+        <sc-if value="{{ showProposal }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+              <label style="font:500 11.5px 'IBM Plex Sans'; color:#667085;">{{ proposalLabel }}</label>
+              <button type="button" onclick="{{ fillNew }}" style="font:600 10.5px 'IBM Plex Mono',monospace; color: var(--accent,#4f46e5); padding:2px 4px;" style-hover="text-decoration:underline;">+ new guid</button>
+            </div>
+            <div style="position:relative;">
+              <input type="text" value="{{ proposalId }}" onchange="{{ setProposal }}" placeholder="00000000-0000-0000-0000-000000000000" spellcheck="false" style="width:100%; padding:10px 34px 10px 12px; border-radius:9px; border:1px solid {{ proposalBorder }}; background:#fbfcfd; font-size:12.5px; color:#1a1d23; outline:none; transition:all .12s ease;" style-focus="border-color: var(--accent,#4f46e5); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent,#4f46e5) 14%, transparent); background:#fff;">
+              <span style="position:absolute; right:11px; top:50%; transform:translateY(-50%); font:600 13px 'IBM Plex Mono',monospace; color: {{ proposalIconColor }};">{{ proposalIcon }}</span>
+            </div>
+            <sc-if value="{{ showProposalError }}" hint-placeholder-val="{{ true }}">
+              <div style="font:400 11px 'IBM Plex Sans'; color:#d92d20; margin-top:6px;">Not a valid GUID — check the format.</div>
+            </sc-if>
+
+            <div style="margin-top:12px;">
+              <div style="position:relative; margin-bottom:7px;">
+                <input type="text" value="{{ recentFilter }}" onchange="{{ setRecentFilter }}" placeholder="filter recent IDs…" spellcheck="false" style="width:100%; padding:7px 10px 7px 29px; border-radius:8px; border:1px solid #e7e9ee; background:#f8f9fb; font-size:11.5px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5); background:#fff;">
+                <span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#b0b7c3; font-size:12px;">⚲</span>
+              </div>
+              <div style="border:1px solid #eef0f3; border-radius:9px; background:#fafbfc; overflow:hidden;">
+                <div style="display:grid; grid-template-columns:1fr 74px 42px; gap:6px; padding:8px 11px 6px; border-bottom:1px solid #eef0f3;">
+                  <span style="font:600 9.5px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Proposal ID</span>
+                  <span style="font:600 9.5px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Executed</span>
+                  <span style="font:600 9.5px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3; text-align:center;">View</span>
+                </div>
+                <div class="devkit-scroll" style="max-height:150px; overflow-y:auto; padding:5px;">
+                  <sc-for list="{{ recentList }}" as="r" hint-placeholder-count="5">
+                    <div style="display:grid; grid-template-columns:1fr 74px 42px; gap:6px; align-items:center; border-radius:6px; background: {{ r.bg }};" style-hover="background:#eef0f3;">
+                      <button type="button" onclick="{{ r.onClick }}" style="display:flex; align-items:center; gap:8px; min-width:0; text-align:left; padding:7px 9px; background:none;">
+                        <span style="width:6px; height:6px; border-radius:50%; flex:none; background: {{ r.dot }};"></span>
+                        <span style="font:400 11px 'IBM Plex Mono',monospace; color: {{ r.fg }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.short }}</span>
+                      </button>
+                      <span style="font:400 10.5px 'IBM Plex Sans'; color: {{ r.executedColor }}; white-space:nowrap;">{{ r.executed }}</span>
+                      <a href="{{ r.viewUrl }}" target="_blank" rel="noopener" title="Open proposal in web" style="display:flex; align-items:center; justify-content:center; width:28px; height:28px; margin:0 auto; border-radius:6px; color:#98a2b3; font-size:13px; text-decoration:none;" style-hover="color: var(--accent,#4f46e5); background:#fff;">↗</a>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ recentEmpty }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:12px; text-align:center; font:400 11px 'IBM Plex Sans'; color:#b0b7c3;">No matching IDs</div>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ createMode }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:9px; background:#fafbfc; border:1px dashed #dfe3ea;">
+            <span style="width:26px; height:26px; border-radius:7px; background:var(--accent,#4f46e5); color:#fff; display:flex; align-items:center; justify-content:center; font:500 14px 'IBM Plex Mono',monospace; flex:none;">＋</span>
+            <span style="font:400 11.5px 'IBM Plex Sans'; color:#667085; line-height:1.4;">A new proposal will be created — no ID required.</span>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- Action -->
+      <div>
+        <div style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; margin-bottom:11px;">Action</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:9px;">
+          <sc-for list="{{ actions }}" as="act" hint-placeholder-count="4">
+            <button type="button" onclick="{{ act.onClick }}" style="text-align:left; padding:11px 12px; border-radius:11px; background: {{ act.bg }}; border:1px solid {{ act.border }}; display:flex; flex-direction:column; gap:8px; transition:all .12s ease;">
+              <span style="width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; font:500 14px 'IBM Plex Mono',monospace; background: {{ act.glyphBg }}; color: {{ act.glyphFg }};">{{ act.glyph }}</span>
+              <span style="font:600 12.5px 'IBM Plex Sans'; color: {{ act.fg }}; line-height:1.2;">{{ act.label }}</span>
+              <span style="font:400 10.5px 'IBM Plex Sans'; color: {{ act.descColor }}; line-height:1.3;">{{ act.desc }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- SAP status -->
+      <sc-if value="{{ showSap }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; margin-bottom:9px;">SAP status</div>
+          <div style="display:flex; gap:3px; background:#f1f3f5; border:1px solid #e7e9ee; border-radius:10px; padding:3px;">
+            <sc-for list="{{ sapOptions }}" as="opt" hint-placeholder-count="3">
+              <button type="button" onclick="{{ opt.onClick }}" style="flex:1; display:flex; align-items:center; justify-content:center; gap:7px; padding:7px 8px; border-radius:7px; font:500 12px 'IBM Plex Mono',monospace; color: {{ opt.fg }}; background: {{ opt.bg }}; box-shadow: {{ opt.shadow }}; transition:all .12s ease;">
+                <span style="width:7px; height:7px; border-radius:50%; background: {{ opt.dot }}; flex:none;"></span>{{ opt.label }}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- Contract number -->
+      <sc-if value="{{ showContract }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <label style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3;">Contract number</label>
+            <button type="button" onclick="{{ regenContract }}" style="display:flex; align-items:center; gap:4px; font:600 10.5px 'IBM Plex Mono',monospace; color: var(--accent,#4f46e5); padding:2px 4px;" style-hover="text-decoration:underline;">↻ regenerate</button>
+          </div>
+          <input type="text" value="{{ contractNumber }}" onchange="{{ setContract }}" placeholder="CN-2026-004821" spellcheck="false" style="width:100%; padding:10px 12px; border-radius:9px; border:1px solid #e0e3ea; background:#fbfcfd; font-size:12.5px; color:#1a1d23; outline:none; transition:all .12s ease;" style-focus="border-color: var(--accent,#4f46e5); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent,#4f46e5) 14%, transparent); background:#fff;">
+        </div>
+      </sc-if>
+
+      <div style="flex:1; min-height:4px;"></div>
+
+      <!-- Run -->
+      <button type="button" onclick="{{ run }}" disabled="{{ runDisabled }}" style="display:flex; align-items:center; justify-content:center; gap:9px; width:100%; padding:13px; border-radius:11px; font:600 13.5px 'IBM Plex Sans'; color: {{ runFg }}; background: {{ runBg }}; cursor: {{ runCursor }}; box-shadow: {{ runShadow }}; transition:all .14s ease;" style-hover="filter:brightness(1.05);">
+        <sc-if value="{{ running }}" hint-placeholder-val="{{ false }}">
+          <span style="width:15px; height:15px; border-radius:50%; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; animation:spin .6s linear infinite; flex:none;"></span>
+        </sc-if>
+        {{ runLabel }}
+      </button>
+    </section>
+
+    <!-- RIGHT: OUTPUT -->
+    <section style="display:flex; flex-direction:column; gap:16px; min-height:0;">
+
+      <!-- Console -->
+      <div style="flex:1; min-height:0; display:flex; flex-direction:column; background:#0d1117; border:1px solid #1c2128; border-radius:14px; overflow:hidden; box-shadow:0 8px 24px rgba(13,17,23,.14);">
+        <div style="display:flex; align-items:center; gap:11px; padding:11px 15px; border-bottom:1px solid #21262d; flex:none;">
+          <div style="display:flex; gap:6px;">
+            <span style="width:11px; height:11px; border-radius:50%; background:#ff5f56;"></span>
+            <span style="width:11px; height:11px; border-radius:50%; background:#ffbd2e;"></span>
+            <span style="width:11px; height:11px; border-radius:50%; background:#27c93f;"></span>
+          </div>
+          <span style="font:600 12px 'IBM Plex Mono',monospace; color:#8b949e; margin-left:4px;">console</span>
+          <span style="font:400 11px 'IBM Plex Mono',monospace; color:#484f58;">{{ logCountLabel }}</span>
+          <div style="flex:1;"></div>
+          <button type="button" onclick="{{ copyConsole }}" style="font:500 11px 'IBM Plex Mono',monospace; color:#8b949e; padding:4px 9px; border-radius:6px; border:1px solid #30363d;" style-hover="color:#c9d1d9; border-color:#484f58;">{{ consoleCopyLabel }}</button>
+          <button type="button" onclick="{{ clearConsole }}" style="font:500 11px 'IBM Plex Mono',monospace; color:#8b949e; padding:4px 9px; border-radius:6px; border:1px solid #30363d;" style-hover="color:#f85149; border-color:#5c2b2b;">clear</button>
+        </div>
+
+        <div ref="{{ consoleRef }}" class="console-scroll" style="flex:1; min-height:0; overflow-y:auto; padding:14px 16px;">
+          <sc-if value="{{ hasLogs }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; flex-direction:column;">
+              <sc-for list="{{ logs }}" as="line" hint-placeholder-count="0">
+                <div style="display:flex; align-items:baseline; gap:9px; padding:1.5px 0; animation:fadein .18s ease;">
+                  <sc-if value="{{ showTimestamps }}" hint-placeholder-val="{{ true }}">
+                    <span style="flex:none; color:#3d444d; font:400 11px 'IBM Plex Mono',monospace;">{{ line.ts }}</span>
+                  </sc-if>
+                  <sc-if value="{{ line.role }}" hint-placeholder-val="{{ true }}">
+                    <span style="flex:none; font:600 10px 'IBM Plex Mono',monospace; letter-spacing:0.04em; padding:2px 7px; border-radius:5px; background: {{ line.roleBg }}; color: {{ line.roleFg }};">{{ line.roleLabel }}</span>
+                  </sc-if>
+                  <span style="font:400 12.5px 'IBM Plex Mono',monospace; line-height:1.5; word-break:break-word;">
+                    <sc-for list="{{ line.segments }}" as="seg" hint-placeholder-count="1"><span style="color: {{ seg.color }}; font-weight: {{ seg.weight }};">{{ seg.text }}</span></sc-for>
+                  </span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ running }}" hint-placeholder-val="{{ false }}">
+                <span style="display:inline-block; width:8px; height:15px; background:#3fb950; margin-top:3px; animation:blink 1s steps(1) infinite;"></span>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
+            <div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:#484f58; text-align:center;">
+              <span style="font:400 24px 'IBM Plex Mono',monospace;">&gt;_</span>
+              <span style="font:400 12.5px 'IBM Plex Mono',monospace; max-width:300px; line-height:1.5;">No output yet. Pick an action and run it to stream the workflow log here.</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <sc-if value="{{ result }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:none; background:#ffffff; border:1px solid #e7e9ee; border-radius:14px; padding:16px 18px; box-shadow:0 1px 2px rgba(16,24,40,.04); animation:fadein .22s ease;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+            <span style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3;">Result</span>
+            <span style="display:inline-flex; align-items:center; gap:7px; padding:4px 11px; border-radius:20px; font:600 12px 'IBM Plex Sans'; color: {{ result.statusColor }}; background: {{ result.statusBg }};">
+              <span style="width:7px; height:7px; border-radius:50%; background: {{ result.statusColor }};"></span>{{ result.statusLabel }}
+            </span>
+            <span style="font:400 11.5px 'IBM Plex Mono',monospace; color:#98a2b3;">finalStatus={{ result.finalStatus }}</span>
+            <div style="flex:1;"></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font:400 11.5px 'IBM Plex Mono',monospace; color:#667085;">jobId</span>
+              <code style="font:400 11.5px 'IBM Plex Mono',monospace; color:#1a1d23; background:#f1f3f5; padding:3px 8px; border-radius:6px; border:1px solid #e7e9ee;">{{ result.jobShort }}</code>
+              <button type="button" onclick="{{ copyJob }}" style="font:600 10.5px 'IBM Plex Mono',monospace; color:#667085; padding:4px 8px; border-radius:6px; border:1px solid #e7e9ee;" style-hover="color: var(--accent,#4f46e5); border-color: var(--accent,#4f46e5);">{{ jobCopyLabel }}</button>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:15px;">
+            <sc-for list="{{ result.steps }}" as="st" hint-placeholder-count="4">
+              <div style="display:flex; align-items:center; gap:8px; padding:6px 11px 6px 7px; border-radius:9px; background:#fafbfc; border:1px solid #eef0f3;">
+                <span style="font:600 10px 'IBM Plex Mono',monospace; letter-spacing:0.04em; padding:2px 7px; border-radius:5px; background: {{ st.roleBg }}; color: {{ st.roleFg }};">{{ st.roleLabel }}</span>
+                <span style="font:500 12px 'IBM Plex Sans'; color: {{ st.color }};">{{ st.action }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <details style="border-top:1px solid #eef0f3; padding-top:12px;">
+            <summary style="font:500 11.5px 'IBM Plex Mono',monospace; color:#667085; cursor:pointer; list-style:none; user-select:none;">▸ raw response</summary>
+            <div style="margin-top:10px; background:#fafbfc; border:1px solid #eef0f3; border-radius:9px; padding:12px 14px; overflow-x:auto;">{{ result.jsonEl }}</div>
+          </details>
+        </div>
+      </sc-if>
+    </section>
+  </main>
+
+  <!-- SETTINGS -->
+  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ closeSettings }}" style="position:fixed; inset:0; background:rgba(16,24,40,.4); z-index:20; animation:fadein .15s ease;"></div>
+    <aside style="position:fixed; top:0; right:0; height:100vh; width:540px; max-width:94vw; background:#ffffff; border-left:1px solid #e7e9ee; box-shadow:-18px 0 44px rgba(16,24,40,.18); z-index:21; display:flex; flex-direction:column; animation:slidein .22s cubic-bezier(.2,.8,.2,1);">
+
+      <div style="display:flex; align-items:flex-start; gap:12px; padding:18px 20px; border-bottom:1px solid #eef0f3; flex:none;">
+        <div style="flex:1;">
+          <div style="font:700 15px 'IBM Plex Sans';">Settings</div>
+          <div style="font:400 11.5px 'IBM Plex Mono',monospace; color:#98a2b3; margin-top:3px;">environments · roles · databases</div>
+        </div>
+        <button type="button" onclick="{{ closeSettings }}" style="flex:none; width:30px; height:30px; border-radius:8px; background:#f1f3f5; color:#667085; font-size:14px;" style-hover="background:#e7e9ee; color:#1a1d23;">✕</button>
+      </div>
+
+      <div class="devkit-scroll" style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:22px;">
+
+        <div>
+          <div style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; margin-bottom:9px;">Default environment</div>
+          <div style="display:flex; gap:3px; background:#f1f3f5; border:1px solid #e7e9ee; border-radius:10px; padding:3px;">
+            <sc-for list="{{ defaultEnvOptions }}" as="opt" hint-placeholder-count="3">
+              <button type="button" onclick="{{ opt.onClick }}" style="flex:1; padding:7px; border-radius:7px; font:600 12px 'IBM Plex Mono',monospace; color: {{ opt.fg }}; background: {{ opt.bg }}; box-shadow: {{ opt.shadow }};">{{ opt.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; margin-bottom:9px;">Editing environment</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <sc-for list="{{ settingsTabs }}" as="t" hint-placeholder-count="3">
+              <button type="button" onclick="{{ t.onClick }}" style="display:flex; align-items:center; gap:7px; padding:7px 13px; border-radius:9px; font:600 12.5px 'IBM Plex Sans'; color: {{ t.fg }}; background: {{ t.bg }}; border:1px solid {{ t.border }};">
+                <span style="width:7px; height:7px; border-radius:50%; background: {{ t.dot }};"></span>{{ t.label }}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div>
+            <label style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; display:block; margin-bottom:8px;">API base URL</label>
+            <input type="text" value="{{ settingsApiBaseUrl }}" onchange="{{ apiChange }}" spellcheck="false" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid #e0e3ea; background:#fbfcfd; font-size:12.5px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent,#4f46e5) 14%, transparent); background:#fff;">
+          </div>
+          <div>
+            <label style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; display:block; margin-bottom:8px;">Web URL <span style="color:#c5cbd4; text-transform:none; letter-spacing:0; font-weight:400;">— opens from the recent list</span></label>
+            <input type="text" value="{{ settingsWeb }}" onchange="{{ webChange }}" spellcheck="false" placeholder="https://web-qa.com" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid #e0e3ea; background:#fbfcfd; font-size:12.5px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent,#4f46e5) 14%, transparent); background:#fff;">
+          </div>
+        </div>
+
+        <div>
+          <div style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; margin-bottom:10px;">Role credentials</div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:grid; grid-template-columns:44px 1fr 140px; gap:8px; padding:0 2px;">
+              <span></span>
+              <span style="font:500 10px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">email</span>
+              <span style="font:500 10px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">password</span>
+            </div>
+            <sc-for list="{{ settingsRoles }}" as="r" hint-placeholder-count="5">
+              <div style="display:grid; grid-template-columns:44px 1fr 140px; gap:8px; align-items:center;">
+                <span style="font:600 10px 'IBM Plex Mono',monospace; letter-spacing:.04em; padding:5px 0; border-radius:5px; text-align:center; background: {{ r.badgeBg }}; color: {{ r.badgeFg }};">{{ r.label }}</span>
+                <input type="text" value="{{ r.email }}" onchange="{{ r.emailChange }}" spellcheck="false" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e0e3ea; background:#fbfcfd; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5); background:#fff;">
+                <input type="text" value="{{ r.password }}" onchange="{{ r.pwChange }}" spellcheck="false" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e0e3ea; background:#fbfcfd; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5); background:#fff;">
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="font:600 11px 'IBM Plex Sans'; letter-spacing:0.06em; text-transform:uppercase; color:#98a2b3; margin-bottom:10px;">Database</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+            <div>
+              <label style="font:500 10.5px 'IBM Plex Sans'; color:#8a92a1; display:block; margin-bottom:5px;">server</label>
+              <input type="text" value="{{ settingsDb.server }}" onchange="{{ settingsDb.serverChange }}" spellcheck="false" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e0e3ea; background:#fbfcfd; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5); background:#fff;">
+            </div>
+            <div>
+              <label style="font:500 10.5px 'IBM Plex Sans'; color:#8a92a1; display:block; margin-bottom:5px;">allowed servers <span style="color:#c5cbd4;">comma-sep</span></label>
+              <input type="text" value="{{ settingsDb.allowedServers }}" onchange="{{ settingsDb.allowedChange }}" spellcheck="false" placeholder="(none)" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e0e3ea; background:#fbfcfd; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5); background:#fff;">
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div style="border:1px solid #eef0f3; border-radius:11px; padding:12px; background:#fafbfc;">
+              <div style="font:600 11px 'IBM Plex Mono',monospace; color:#475467; margin-bottom:10px;">sam db</div>
+              <div style="display:flex; flex-direction:column; gap:7px;">
+                <input type="text" value="{{ settingsDb.sam.database }}" onchange="{{ settingsDb.sam.dbChange }}" spellcheck="false" placeholder="database" style="width:100%; padding:7px 10px; border-radius:7px; border:1px solid #e0e3ea; background:#fff; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5);">
+                <input type="text" value="{{ settingsDb.sam.user }}" onchange="{{ settingsDb.sam.userChange }}" spellcheck="false" placeholder="user" style="width:100%; padding:7px 10px; border-radius:7px; border:1px solid #e0e3ea; background:#fff; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5);">
+                <input type="text" value="{{ settingsDb.sam.password }}" onchange="{{ settingsDb.sam.pwChange }}" spellcheck="false" placeholder="password" style="width:100%; padding:7px 10px; border-radius:7px; border:1px solid #e0e3ea; background:#fff; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5);">
+              </div>
+            </div>
+            <div style="border:1px solid #eef0f3; border-radius:11px; padding:12px; background:#fafbfc;">
+              <div style="font:600 11px 'IBM Plex Mono',monospace; color:#475467; margin-bottom:10px;">sap db</div>
+              <div style="display:flex; flex-direction:column; gap:7px;">
+                <input type="text" value="{{ settingsDb.sap.database }}" onchange="{{ settingsDb.sap.dbChange }}" spellcheck="false" placeholder="database" style="width:100%; padding:7px 10px; border-radius:7px; border:1px solid #e0e3ea; background:#fff; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5);">
+                <input type="text" value="{{ settingsDb.sap.user }}" onchange="{{ settingsDb.sap.userChange }}" spellcheck="false" placeholder="user" style="width:100%; padding:7px 10px; border-radius:7px; border:1px solid #e0e3ea; background:#fff; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5);">
+                <input type="text" value="{{ settingsDb.sap.password }}" onchange="{{ settingsDb.sap.pwChange }}" spellcheck="false" placeholder="password" style="width:100%; padding:7px 10px; border-radius:7px; border:1px solid #e0e3ea; background:#fff; font-size:12px; color:#1a1d23; outline:none;" style-focus="border-color: var(--accent,#4f46e5);">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid #eef0f3; padding-top:16px; display:flex; align-items:center; justify-content:space-between; gap:14px;">
+          <span style="font:400 11px 'IBM Plex Sans'; color:#98a2b3; line-height:1.4;">Saved to this browser and used by console runs.</span>
+          <button type="button" onclick="{{ resetConfig }}" style="flex:none; font:600 12px 'IBM Plex Sans'; color:#667085; background:#f1f3f5; border:1px solid #e7e9ee; padding:8px 14px; border-radius:9px;" style-hover="color:#d92d20; border-color:#f0a3a0;">Reset to example data</button>
+        </div>
+
+      </div>
+    </aside>
+  </sc-if>
+</div>
