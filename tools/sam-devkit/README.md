@@ -12,6 +12,27 @@ node server.mjs                        # http://localhost:8787
 ```
 Requires Node 18+. No `npm install` — zero dependencies.
 
+## Build a standalone executable (no Node needed to run)
+
+For teammates who can't install Node, package a single-file executable via Node SEA:
+
+```bash
+npm run build          # → dist/sam-devkit(.exe)
+```
+
+Requires **Node 20+** to build (uses `node:sea`); `esbuild` + `postject` are fetched via `npx`
+(build-time only — the runtime stays zero-dependency). `index.html` is embedded into the binary;
+`config.json` is read from **beside the executable** at runtime.
+
+Ship `dist/sam-devkit(.exe)` together with a filled-in `config.json` next to it, then run it and
+open http://localhost:8787.
+
+> **Per-OS:** the build copies *this machine's* Node binary, so it is **not** cross-platform — run
+> `npm run build` **on each target OS**: Windows → `sam-devkit.exe`, macOS/Linux → `sam-devkit`.
+> A Windows `.exe` will **not** run on macOS/Linux and vice-versa. On macOS you may also need to
+> re-sign the output: `codesign --remove-signature dist/sam-devkit` before postject (the build) and
+> `codesign --sign - dist/sam-devkit` after, then clear quarantine with `xattr -d com.apple.quarantine`.
+
 ## Environments
 
 `config.json` can hold multiple named environment profiles instead of one flat config:

@@ -160,3 +160,4 @@ tools/sam-devkit/config.json
 
 # Obsidian vault config (machine-specific)
 .obsidian/
+tools/sam-devkit/dist/

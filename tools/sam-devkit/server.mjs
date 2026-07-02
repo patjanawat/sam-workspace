@@ -2,6 +2,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isSea, getAsset } from 'node:sea';
 import { assertDevHost } from './lib/guard.mjs';
 import { loadConfig, loadDbConfig, listEnvironments } from './lib/config.mjs';
 import { setSapState } from './lib/sap-fixup.mjs';
@@ -9,11 +10,21 @@ import { setProposalContract } from './lib/proposal-contract.mjs';
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+// import.meta.url is empty in the bundled CJS (SEA) build — fall back to the exe dir.
+// HERE is only used by the dev (`node server.mjs`) file-read paths; SEA uses assets + execPath.
+const HERE = import.meta.url ? dirname(fileURLToPath(import.meta.url)) : dirname(process.execPath);
 const PORT = process.env.PORT || 8787;
 
+// When packaged as a single executable (SEA): index.html is an embedded asset and
+// config.json is read from beside the .exe. In dev (`node server.mjs`) both sit next to this file.
+const CONFIG_PATH = isSea() ? join(dirname(process.execPath), 'config.json') : join(HERE, 'config.json');
+
+async function readIndexHtml() {
+  return isSea() ? getAsset('index.html', 'utf8') : readFile(join(HERE, 'index.html'), 'utf8');
+}
+
 async function readRawConfig() {
-  const txt = await readFile(join(HERE, 'config.json'), 'utf8');
+  const txt = await readFile(CONFIG_PATH, 'utf8');
   return JSON.parse(txt);
 }
 
@@ -115,7 +126,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x');
     if (req.method === 'GET' && url.pathname === '/') {
-      const html = await readFile(join(HERE, 'index.html'), 'utf8');
+      const html = await readIndexHtml();
       return send(res, 200, html, 'text/html; charset=utf-8');
     }
     if (req.method === 'GET' && url.pathname === '/config') {
