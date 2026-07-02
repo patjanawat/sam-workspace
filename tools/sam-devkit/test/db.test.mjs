@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runSql, runSqlFile } from '../lib/db.mjs';
+import { runSql, runSqlFile, runSqlWide } from '../lib/db.mjs';
 
 function fakeExec(record, result) {
   return async (cmd, args) => { record.cmd = cmd; record.args = args; return result; };
@@ -14,7 +14,7 @@ test('builds sqlcmd args array (no shell string) and returns trimmed stdout', as
   });
   assert.equal(out, '1');
   assert.equal(rec.cmd, 'sqlcmd');
-  assert.deepEqual(rec.args, ['-S', 'localhost', '-d', 'SamDb', '-U', 'sa', '-P', 'pw', '-C', '-b', '-h', '-1', '-y', '0', '-Q', 'SELECT 1;']);
+  assert.deepEqual(rec.args, ['-S', 'localhost', '-d', 'SamDb', '-U', 'sa', '-P', 'pw', '-C', '-b', '-h', '-1', '-Q', 'SELECT 1;']);
 });
 
 test('nonzero exit throws with stderr text', async () => {
@@ -33,12 +33,25 @@ test('missing sqlcmd (ENOENT) throws a clear not-found error', async () => {
   );
 });
 
-test('runSql includes -y 0 (untruncated variable-width output)', async () => {
+test('runSql uses -h -1 (no headers) and no -y/-W (they conflict with -h)', async () => {
   const rec = {};
   await runSql({ server: 'localhost', database: 'd', user: 'u', password: 'p', sql: 'SELECT 1;',
     exec: async (cmd, args) => { rec.args = args; return { stdout: '', stderr: '' }; } });
-  const i = rec.args.indexOf('-y');
-  assert.ok(i >= 0 && rec.args[i + 1] === '0', '-y 0 present');
+  const h = rec.args.indexOf('-h');
+  assert.ok(h >= 0 && rec.args[h + 1] === '-1', '-h -1 present');
+  assert.ok(!rec.args.includes('-y'), 'no -y (mutually exclusive with -h)');
+  assert.ok(!rec.args.includes('-W'), 'no -W (mutually exclusive with -y; trimmed in code instead)');
+});
+
+test('runSqlWide uses -y 0 without -h and strips the header + separator', async () => {
+  const rec = {};
+  const out = await runSqlWide({ server: 'localhost', database: 'd', user: 'u', password: 'p',
+    sql: 'SELECT RebatePayload FROM x;',
+    exec: async (cmd, args) => { rec.args = args; return { stdout: 'RebatePayload\r\n-------------\r\n{"a":1}\r\n', stderr: '' }; } });
+  const y = rec.args.indexOf('-y');
+  assert.ok(y >= 0 && rec.args[y + 1] === '0', '-y 0 present');
+  assert.ok(!rec.args.includes('-h'), 'no -h (mutually exclusive with -y)');
+  assert.equal(out, '{"a":1}', 'header + dashed separator stripped, value returned');
 });
 
 test('runSqlFile uses -i <file> and returns trimmed stdout', async () => {

@@ -2,7 +2,7 @@ import { writeFile, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertDevDbServer } from './guard.mjs';
-import { runSql, runSqlFile } from './db.mjs';
+import { runSql, runSqlFile, runSqlWide } from './db.mjs';
 import { upsertContractByProductId, upsertContractForAllProducts } from './json-contract.mjs';
 
 const GUID_RE = /^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
@@ -22,7 +22,7 @@ async function defaultWriteTemp(contents) {
 
 export async function setProposalContract({
   db, proposalId, contractNo, productCode,
-  run = runSql, runFile = runSqlFile, writeTemp = defaultWriteTemp, log = () => {},
+  run = runSql, runFile = runSqlFile, readWide = runSqlWide, writeTemp = defaultWriteTemp, log = () => {},
 }) {
   if (!GUID_RE.test(proposalId || '')) throw new Error(`Invalid proposalId (must be GUID): ${proposalId}`);
   if (contractNo === undefined || contractNo === null || contractNo === '') throw new Error('contractNo is required');
@@ -54,7 +54,7 @@ export async function setProposalContract({
   // --- Step 2: RebatePayload JSON ---
   try {
     log('read ProposalDetail.RebatePayload');
-    const payloadJson = await run({ ...sam, sql: `SET NOCOUNT ON; SELECT RebatePayload FROM dbo.ProposalDetail WHERE ProposalId='${id}';` });
+    const payloadJson = await readWide({ ...sam, sql: `SET NOCOUNT ON; SELECT RebatePayload FROM dbo.ProposalDetail WHERE ProposalId='${id}';` });
     if (!payloadJson || !payloadJson.trim()) {
       result.json.skippedReason = 'no RebatePayload (detail missing or empty)';
       log(`  json skipped: ${result.json.skippedReason}`);
