@@ -19,46 +19,12 @@
 <input id="apiBaseUrl" placeholder="http://localhost:5000" readonly>
 <nav>
   <button data-tab="approve">Approve-through</button>
-  <button data-tab="clone">Clone → approve</button>
-  <button data-tab="create">Create → approve</button>
   <button data-tab="sapfix">SAP fixup</button>
 </nav>
 <section id="tab-approve">
   <label>Proposal ID (Pending)</label>
   <input id="proposalId" placeholder="guid">
   <button id="run">Run approve-through</button>
-</section>
-<section id="tab-clone" hidden>
-  <label>Source RequestNo</label><input id="cl-requestNo">
-  <label>Source Version</label><input id="cl-version" type="number">
-  <label>SalesOrgId</label><input id="cl-salesOrgId">
-  <label>ProposalGroupId (P=1,R=2,S=3)</label><input id="cl-groupId" type="number">
-  <label>CustomerGroupId</label><input id="cl-cg">
-  <label>Month</label><input id="cl-month" type="number">
-  <label>Year</label><input id="cl-year" type="number">
-  <label><input type="checkbox" id="cl-e2e" checked> Then run approve-through</label>
-  <label>Submit as</label>
-  <select id="cl-submitAs">
-    <option value="srp">srp — full 4-step chain (needs srp.ReportToId = sam)</option>
-    <option value="sam">sam — auto-bypass ASM, chain starts at sdm</option>
-  </select>
-  <button id="cl-run">Run clone</button>
-</section>
-<section id="tab-create" hidden>
-  <label>Type (R/S/P)</label><input id="cr-type" value="R">
-  <label>SalesOrgId</label><input id="cr-salesOrgId">
-  <label>CustomerGroupId</label><input id="cr-cg">
-  <label>Product IDs (comma-separated)</label><input id="cr-products">
-  <label>Month</label><input id="cr-month" type="number">
-  <label>Year</label><input id="cr-year" type="number">
-  <label>Raw rebatePayload JSON (optional — overrides template)</label><input id="cr-raw">
-  <label><input type="checkbox" id="cr-e2e" checked> Then run approve-through</label>
-  <label>Submit as</label>
-  <select id="cr-submitAs">
-    <option value="srp">srp — full 4-step chain (needs srp.ReportToId = sam)</option>
-    <option value="sam">sam — auto-bypass ASM, chain starts at sdm</option>
-  </select>
-  <button id="cr-run">Run create</button>
 </section>
 <section id="tab-sapfix" hidden>
   <label>Proposal ID (guid)</label><input id="sf-proposalId">
@@ -94,7 +60,7 @@
   $('env').onchange = () => { $('apiBaseUrl').value = envUrls[$('env').value] || ''; };
 
   function show(tab) {
-    for (const s of ['approve', 'clone', 'create', 'sapfix']) $('tab-' + s).hidden = (s !== tab);
+    for (const s of ['approve', 'sapfix']) $('tab-' + s).hidden = (s !== tab);
   }
   document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => show(b.dataset.tab); });
   show('approve');
@@ -107,24 +73,6 @@
   }
 
   $('run').onclick = () => stream({ module: 'approve', env: $('env').value, proposalId: $('proposalId').value });
-
-  $('cl-run').onclick = () => stream({
-    module: $('cl-e2e').checked ? 'end-to-end-clone' : 'clone',
-    env: $('env').value,
-    submitAs: $('cl-submitAs').value,
-    source: { requestNo: $('cl-requestNo').value, version: Number($('cl-version').value), salesOrgId: $('cl-salesOrgId').value, proposalGroupId: Number($('cl-groupId').value), customerGroupId: $('cl-cg').value },
-    month: Number($('cl-month').value), year: Number($('cl-year').value),
-  });
-
-  $('cr-run').onclick = () => stream({
-    module: $('cr-e2e').checked ? 'end-to-end-create' : 'create',
-    env: $('env').value,
-    submitAs: $('cr-submitAs').value,
-    type: $('cr-type').value, salesOrgId: $('cr-salesOrgId').value, customerGroupId: $('cr-cg').value,
-    productIds: $('cr-products').value.split(',').map((s) => s.trim()).filter(Boolean),
-    month: Number($('cr-month').value), year: Number($('cr-year').value),
-    rawPayload: $('cr-raw').value ? { rebatePayload: $('cr-raw').value } : undefined,
-  });
 
   $('sf-random').onclick = () => {
     let s = '';

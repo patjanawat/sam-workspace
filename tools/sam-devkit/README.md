@@ -1,8 +1,9 @@
 # sam-devkit
 
-Dev harness for the SAM proposal lifecycle. Create / clone a proposal and drive it
-through the full approval chain (`sam → sdm → pte → cdr`) without logging in as
-four roles by hand. **Dev/local only — never point it at production.**
+Dev harness for the SAM proposal lifecycle. Two tools: **Approve-through** — drive a
+Pending proposal through the full approval chain (`sam → sdm → pte → cdr`) without
+logging in as four roles by hand — and **SAP fixup** — force-set a proposal's SAP
+state directly in the DB. **Dev/local only — never point it at production.**
 
 ## Setup
 ```bash
@@ -41,20 +42,18 @@ Hosts not covered by an env profile (or its explicit `allowedHosts`) are still r
 
 ## Prerequisites (dev env)
 - Role accounts for `srp, sam, sdm, pte, cdr` that log in.
-- **Approval chain (full):** either submit as `srp` with `srp.ReportToId = sam`, OR submit as `sam`
-  (ASM step auto-bypasses → chain starts at `sdm`). Without the report-to link, the sam-track
-  detail GET returns 403 — see the spec's Module C prerequisite.
-- Each Create/Clone form has a **Submit as** selector: `srp` (full 4-step chain — requires `srp.ReportToId = sam`) or `sam` (auto-bypasses the ASM step so the chain starts at `sdm`).
-- **Clone:** an **Approved** source proposal (Type P source also needs `SAPStatus = success`).
-- **Create:** at least one valid `productId` from `GET /rebates/options` for your chosen
-  (customer group, sales org, type). Use the raw-payload field if the template can't express it.
+- **Approve-through:** the `sam` account must be allowed to see the proposal — it must own the
+  proposal or be the creator's manager (`ReportToId`), otherwise the sam-track detail GET returns
+  403. (If the proposal was submitted by an ASM, that step is already auto-approved and the chain
+  effectively starts at `sdm`.)
 
 ## Notes
 - Login uses lockout — a wrong password locks the account after N tries. The tool fails fast on the
   first 401; fix `config.json` before re-running.
-- `proposalGroupId` mapping is **P=1, R=2, S=3**.
+- `proposalGroupId` mapping is **P=1, R=2, S=3** (used by SAP fixup to pick the contract table).
 - CDR approval is async (Hangfire) — the tool reports the `jobId`; SAP sync completes in the background.
-- ⚠️ Not yet exercised against a live SAM API — the test suite is unit-only (fake fetch). The first real run is effectively the integration test; verify create/clone/approve against your dev backend before relying on it.
+- ⚠️ Not yet fully exercised against a live SAM API — the test suite is unit-only (fake fetch).
+  Verify approve-through / SAP fixup against your dev backend before relying on it.
 
 ## SAP fixup (direct DB — dev only)
 
@@ -74,6 +73,10 @@ or seed a contract number.
   - Type S → `ChangeContract.CONTRACT_NO`
   - Type R → no contract table (status is still updated).
 - The contract UPDATE affects **all rows** for that `PROPOSAL_ID`; the tool reports rows affected.
+- Contract number → also written into main DB `ProposalDetail.RebatePayload` JSON
+  (`values.contract[colId].new` for every product, across all non-deleted pages; the page payload
+  is double-encoded, so the tool parses → updates → re-stringifies each page). Reported as `payload`.
+- **🎲 Random (11 digits)** button fills the contract field with a random 11-digit number.
 
 **Notes**
 - Values are written raw — SAP does not validate them. This is a dev fixup, not a real sync.
