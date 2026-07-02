@@ -14,7 +14,7 @@ test('builds sqlcmd args array (no shell string) and returns trimmed stdout', as
   });
   assert.equal(out, '1');
   assert.equal(rec.cmd, 'sqlcmd');
-  assert.deepEqual(rec.args, ['-S', 'localhost', '-d', 'SamDb', '-U', 'sa', '-P', 'pw', '-C', '-b', '-h', '-1', '-W', '-y', '0', '-Q', 'SELECT 1;']);
+  assert.deepEqual(rec.args, ['-S', 'localhost', '-d', 'SamDb', '-U', 'sa', '-P', 'pw', '-C', '-b', '-h', '-1', '-y', '0', '-Q', 'SELECT 1;']);
 });
 
 test('nonzero exit throws with stderr text', async () => {
