@@ -1,9 +1,10 @@
 # sam-devkit
 
-Dev harness for the SAM proposal lifecycle. Two tools: **Approve-through** — drive a
+Dev harness for the SAM proposal lifecycle. Three tools: **Approve-through** — drive a
 Pending proposal through the full approval chain (`sam → sdm → pte → cdr`) without
-logging in as four roles by hand — and **SAP fixup** — force-set a proposal's SAP
-state directly in the DB. **Dev/local only — never point it at production.**
+logging in as four roles by hand — **SAP fixup** — force-set a proposal's SAP
+state directly in the DB — and **Clone → Draft** — copy a proposal (details included)
+into a fresh Draft directly in the DB. **Dev/local only — never point it at production.**
 
 ## Setup
 ```bash
@@ -106,6 +107,44 @@ or seed a contract number.
   in `config.json` (e.g. `"allowedServers": ["192.168.2.10"]`). Any server not localhost-ish
   and not explicitly listed is still refused, so production stays protected.
 - Status and contract are independent writes across two DBs — partial success is possible and reported per step.
+
+## Clone → Draft (direct DB — dev only)
+
+Copy an existing proposal into a new **Draft** — including all detail rows — without
+walking the FE create wizard. Search a `RequestNo`, pick the source, pick a mode, run.
+
+**Modes**
+
+| Mode | RequestNo | Version | Year/Month | Types |
+|---|---|---|---|---|
+| **New version** | same as source | auto `MAX(Version)+1` | current month | P, R, S |
+| **New proposal** | new — typed, or empty = auto-generate with the real BE format `{org}-{saleOffice}-{type}{yy}{running:5}` | 0 | current month **+ 1** | R, S only (Type P is locked to New version) |
+
+The month follows the mode on purpose: the real backend keeps the same `RequestNo` only for
+same-month clones and issues a new `RequestNo` across months, so devkit clones look exactly
+like organically created ones.
+
+**What it copies** (single SQL transaction, `sqlcmd`): the `Proposal` row plus
+`ProposalDetail` (rebate/special/accum payloads), `ProposalCustomer`, `ProposalProduct`,
+`ProposalProductTypeP` / `ProposalProductTypeRS`, and `ProposalFile` (rows only — files keep
+pointing at the same MinIO objects). Column lists are discovered from `sys.columns` at run
+time, so schema drift and `RowVersion` are handled automatically. `ApprovalHistory` is **not**
+copied.
+
+**Overrides on the new row:** new `Id`, `ProposalStatus = 1` (Draft), `PreviousId = source.Id`
+(P.M. Max baseline keeps working), `RequestDateUTC`/`CreatedDateUTC = now`, `SAPStatus` reset.
+
+**Notes**
+- Source should be **Approved** (Type P also `SAPStatus = success`) to mirror the real clone
+  rule — devkit only **warns** and clones anyway, so you can clone Drafts while testing.
+- `RequestNo + Version` uniqueness is checked before insert.
+- The DB guard is the same as SAP fixup (`localhost` / `db.allowedServers` only).
+- Direct DB insert skips the CustomerGroup-availability check (1 Draft/Pending per group per
+  period) — acceptable for a dev tool, but the FE may show overlapping drafts.
+- The new proposal id lands in the **recent list**, so you can immediately run Approve-through on it.
+- Each search row has an **Action** column — copy the proposal id, or open the proposal in the web app.
+- After a successful clone the search box switches to the result's `RequestNo` and the list
+  **auto-refreshes**, so the fresh Draft shows up immediately (both modes).
 
 ## Test
 ```bash
