@@ -2,19 +2,31 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isSea, getAsset } from 'node:sea';
 import { assertDevHost } from './lib/guard.mjs';
-import { loadConfig } from './lib/config.mjs';
+import { loadConfig, loadDbConfig, listEnvironments } from './lib/config.mjs';
+import { setSapState } from './lib/sap-fixup.mjs';
+import { setProposalContract } from './lib/proposal-contract.mjs';
+import { searchProposals, cloneProposal } from './lib/clone-proposal.mjs';
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
-import { cloneProposal } from './lib/clone.mjs';
-import { createProposal } from './lib/create.mjs';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+// import.meta.url is empty in the bundled CJS (SEA) build — fall back to the exe dir.
+// HERE is only used by the dev (`node server.mjs`) file-read paths; SEA uses assets + execPath.
+const HERE = import.meta.url ? dirname(fileURLToPath(import.meta.url)) : dirname(process.execPath);
 const PORT = process.env.PORT || 8787;
 
-async function readConfig() {
-  const txt = await readFile(join(HERE, 'config.json'), 'utf8');
-  return loadConfig(JSON.parse(txt));
+// When packaged as a single executable (SEA): index.html is an embedded asset and
+// config.json is read from beside the .exe. In dev (`node server.mjs`) both sit next to this file.
+const CONFIG_PATH = isSea() ? join(dirname(process.execPath), 'config.json') : join(HERE, 'config.json');
+
+async function readIndexHtml() {
+  return isSea() ? getAsset('index.html', 'utf8') : readFile(join(HERE, 'index.html'), 'utf8');
+}
+
+async function readRawConfig() {
+  const txt = await readFile(CONFIG_PATH, 'utf8');
+  return JSON.parse(txt);
 }
 
 function send(res, status, body, type = 'application/json') {
@@ -22,7 +34,7 @@ function send(res, status, body, type = 'application/json') {
   res.end(typeof body === 'string' ? body : JSON.stringify(body));
 }
 
-async function handleRun(req, res, cfg) {
+async function handleRun(req, res) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
 
@@ -36,45 +48,100 @@ async function handleRun(req, res, cfg) {
     res.write('ERROR Bad request body (invalid JSON)\n');
     return res.end();
   }
-  const apiBaseUrl = input.apiBaseUrl || cfg.apiBaseUrl;
+
+  let cfg;
+  try {
+    const rawCfg = await readRawConfig();
+    cfg = loadConfig(rawCfg, input.env);
+  } catch (e) {
+    res.write(`ERROR ${e.message}\n`);
+    return res.end();
+  }
+
   const module = input.module;
   if (typeof module !== 'string') {
     res.write('ERROR no module specified\n');
     return res.end();
   }
 
-  try {
-    assertDevHost(apiBaseUrl);
-    const client = createClient({ baseUrl: apiBaseUrl });
-
-    const submitter = input.submitAs === 'sam' ? cfg.roles.sam : cfg.roles.srp;
-    let proposalId = input.proposalId;
-
-    if (module === 'create' || module === 'end-to-end-create') {
-      const r = await createProposal({
-        client, account: submitter, type: input.type, salesOrgId: input.salesOrgId,
-        customerGroupId: input.customerGroupId, month: input.month, year: input.year,
-        productIds: input.productIds, rawPayload: input.rawPayload, log,
+  if (module === 'sap-fixup') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await setSapState({
+        db,
+        proposalId: input.proposalId,
+        sapStatus: input.sapStatus,
+        contractNo: input.contractNo,
+        log,
       });
-      proposalId = r.proposalId;
-      res.write(`CREATED ${JSON.stringify(r)}\n`);
-    } else if (module === 'clone' || module === 'end-to-end-clone') {
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'proposal-contract') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await setProposalContract({
+        db,
+        proposalId: input.proposalId,
+        contractNo: input.contractNo,
+        productCode: input.productCode,
+        log,
+      });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'clone-search') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await searchProposals({ db, requestNo: input.requestNo, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'clone-proposal') {
+    try {
+      const db = loadDbConfig(cfg);
       const r = await cloneProposal({
-        client, account: submitter, source: input.source, month: input.month, year: input.year, log,
+        db,
+        sourceId: input.sourceId,
+        mode: input.mode,
+        newRequestNo: input.newRequestNo,
+        log,
       });
-      proposalId = r.proposalId;
-      res.write(`CREATED ${JSON.stringify(r)}\n`);
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
     }
+    return res.end();
+  }
 
-    if (module === 'approve' || module.startsWith('end-to-end')) {
-      if (!proposalId) { res.write('ERROR no proposalId to approve\n'); return res.end(); }
-      const result = await approveThrough({ client, accounts: cfg.roles, proposalId, log });
-      res.write('RESULT ' + JSON.stringify(result) + '\n');
-    } else if (module === 'create' || module === 'clone') {
-      res.write('RESULT ' + JSON.stringify({ proposalId }) + '\n');
-    } else {
-      res.write(`RESULT ${JSON.stringify({ error: `unknown module "${module}"` })}\n`);
-    }
+  if (module !== 'approve') {
+    res.write(`ERROR unknown module "${module}"\n`);
+    return res.end();
+  }
+  if (!input.proposalId) {
+    res.write('ERROR no proposalId to approve\n');
+    return res.end();
+  }
+
+  try {
+    assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
+    const client = createClient({ baseUrl: cfg.apiBaseUrl });
+    const result = await approveThrough({ client, accounts: cfg.roles, proposalId: input.proposalId, log });
+    res.write('RESULT ' + JSON.stringify(result) + '\n');
   } catch (e) {
     // LoginError / ApiError carry .status and .bodyText for a useful message
     const detail = e.bodyText ? ` — ${e.bodyText}` : '';
@@ -86,23 +153,17 @@ async function handleRun(req, res, cfg) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    const cfg = await readConfig();
-    if (req.method === 'GET' && req.url === '/') {
-      const html = await readFile(join(HERE, 'index.html'), 'utf8');
+    const url = new URL(req.url, 'http://x');
+    if (req.method === 'GET' && url.pathname === '/') {
+      const html = await readIndexHtml();
       return send(res, 200, html, 'text/html; charset=utf-8');
     }
-    if (req.method === 'GET' && req.url === '/config') {
-      return send(res, 200, { apiBaseUrl: cfg.apiBaseUrl }); // never expose passwords
+    if (req.method === 'GET' && url.pathname === '/config') {
+      const raw = await readRawConfig();
+      return send(res, 200, listEnvironments(raw)); // env names + apiBaseUrls only — never passwords
     }
-    if (req.method === 'POST' && req.url === '/run') {
-      return await handleRun(req, res, cfg);
-    }
-    if (req.method === 'GET' && req.url === '/options') {
-      assertDevHost(cfg.apiBaseUrl);
-      const client = createClient({ baseUrl: cfg.apiBaseUrl });
-      const { token } = await client.login(cfg.roles.srp);
-      const options = await client.get('/requests/options', token);
-      return send(res, 200, options);
+    if (req.method === 'POST' && url.pathname === '/run') {
+      return await handleRun(req, res);
     }
     send(res, 404, { error: 'not found' });
   } catch (e) {

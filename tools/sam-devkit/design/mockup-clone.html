@@ -1,0 +1,351 @@
+<meta charset="utf-8">
+<title>sam-devkit — Clone → Draft mockup</title>
+<style>
+  :root{
+    --accent:#4f46e5; --bg:#f6f7f9; --card:#fff; --line:#e7e9ee; --line2:#eef0f3;
+    --ink:#1a1d23; --mut:#667085; --mut2:#98a2b3; --mut3:#b0b7c3;
+    --green:#3fb950; --amber:#d29922; --red:#f85149;
+    --sans:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --mono:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  input{font-family:var(--mono)}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;padding:0}
+  button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  @keyframes fadein{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  ::selection{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+  .scroll::-webkit-scrollbar{width:10px}
+  .scroll::-webkit-scrollbar-thumb{background:#d0d5dd;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  .cscroll::-webkit-scrollbar{width:10px}
+  .cscroll::-webkit-scrollbar-thumb{background:#30363d;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+
+  header{display:flex;align-items:center;gap:18px;padding:12px 22px;background:var(--card);border-bottom:1px solid var(--line);flex:none}
+  .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 40%,transparent);font:600 15px var(--mono);color:#fff}
+  .seg{display:flex;gap:3px;background:#f1f3f5;border:1px solid var(--line);border-radius:10px;padding:3px}
+  .seg button{display:flex;align-items:center;gap:7px;padding:5px 12px;border-radius:7px;font:600 12.5px var(--sans);color:var(--mut)}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10)}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+
+  main{flex:1;display:grid;grid-template-columns:384px 1fr;gap:20px;padding:20px 22px;min-height:0}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .sect{font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--mut2);margin-bottom:10px}
+  .lbl{font:500 11.5px var(--sans);color:var(--mut)}
+
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .act{text-align:left;padding:11px 12px;border-radius:11px;background:#fff;border:1px solid var(--line);display:flex;flex-direction:column;gap:8px;transition:all .12s ease}
+  .act.on{background:color-mix(in srgb,var(--accent) 7%,#fff);border-color:var(--accent)}
+  .act .g{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 14px var(--mono);background:#f1f3f5;color:var(--mut)}
+  .act.on .g{background:var(--accent);color:#fff}
+  .act .t{font:600 12.5px var(--sans);color:var(--ink);line-height:1.2}
+  .act .d{font:400 10.5px var(--sans);color:#98a2b3;line-height:1.3}
+  .act.on .d{color:var(--mut)}
+
+  .inp{width:100%;padding:9px 12px;border-radius:9px;border:1px solid #e0e3ea;background:#fbfcfd;font-size:12.5px;color:var(--ink);outline:none;transition:all .12s ease}
+  .inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent);background:#fff}
+
+  .srcbox{border:1px solid var(--line2);border-radius:9px;background:#fafbfc;overflow:hidden;margin-top:7px}
+  .srchead{display:grid;grid-template-columns:1fr 30px 26px 62px 32px;gap:6px;padding:8px 11px 6px;border-bottom:1px solid var(--line2)}
+  .srchead span{font:600 9.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--mut3)}
+  .srclist{max-height:168px;overflow-y:auto;padding:5px}
+  .srow{display:grid;grid-template-columns:1fr 30px 26px 62px 32px;gap:6px;align-items:center;width:100%;text-align:left;border-radius:6px;padding:7px 6px;background:transparent}
+  .srow:hover{background:var(--line2)}
+  .srow.on{background:color-mix(in srgb,var(--accent) 9%,#fff)}
+  .srow .rq{font:400 11px var(--mono);color:#475467;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srow.on .rq{color:var(--accent);font-weight:500}
+  .srow .vv{font:400 10.5px var(--mono);color:var(--mut2)}
+  .tb{font:600 9.5px var(--mono);padding:2px 0;border-radius:5px;text-align:center}
+  .tb.R{color:#4f46e5;background:rgba(79,70,229,.10)}
+  .tb.S{color:#0d9488;background:rgba(13,148,136,.10)}
+  .tb.P{color:#b45309;background:rgba(180,83,9,.10)}
+  .stt{font:400 10px var(--sans);white-space:nowrap}
+  .sap{display:flex;justify-content:center}
+
+  .modes{display:flex;flex-direction:column;gap:8px}
+  .mode{display:flex;align-items:flex-start;gap:10px;text-align:left;padding:10px 12px;border-radius:10px;background:#fff;border:1px solid var(--line);transition:all .12s ease}
+  .mode.on{background:color-mix(in srgb,var(--accent) 7%,#fff);border-color:var(--accent)}
+  .mode:disabled{opacity:.45;cursor:not-allowed}
+  .radio{width:15px;height:15px;border-radius:50%;border:1.5px solid #c5cbd4;flex:none;margin-top:1px;position:relative}
+  .mode.on .radio{border-color:var(--accent)}
+  .mode.on .radio::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--accent)}
+  .mode .mt{font:600 12px var(--sans);color:var(--ink)}
+  .mode .md{font:400 10.5px var(--sans);color:var(--mut2);margin-top:2px;line-height:1.35}
+  .plock{font:400 10.5px var(--sans);color:var(--amber);background:rgba(210,153,34,.10);border:1px solid rgba(210,153,34,.25);border-radius:7px;padding:6px 10px;line-height:1.4}
+
+  .target{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;background:#fafbfc;border:1px dashed #dfe3ea;font:400 11.5px var(--mono);color:#475467}
+  .target b{font-weight:600;color:var(--ink)}
+  .warn{font:400 10.5px var(--sans);color:var(--amber);margin-top:6px}
+
+  .run{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:13px;border-radius:11px;font:600 13.5px var(--sans);color:#98a2b3;background:#e4e7ec;cursor:not-allowed;transition:all .14s ease}
+  .run.ok{color:#fff;background:var(--accent);cursor:pointer;box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 34%,transparent)}
+  .run.ok:hover{filter:brightness(1.05)}
+  .spin{width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;animation:spin .6s linear infinite;flex:none}
+
+  .right{display:flex;flex-direction:column;gap:16px;min-height:0}
+  .console{flex:1;min-height:0;display:flex;flex-direction:column;background:#0d1117;border:1px solid #1c2128;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(13,17,23,.14)}
+  .chead{display:flex;align-items:center;gap:11px;padding:11px 15px;border-bottom:1px solid #21262d;flex:none}
+  .cbody{flex:1;min-height:0;overflow-y:auto;padding:14px 16px}
+  .cline{display:flex;align-items:baseline;gap:9px;padding:1.5px 0;animation:fadein .18s ease}
+  .cts{flex:none;color:#3d444d;font:400 11px var(--mono)}
+  .ctag{flex:none;font:600 10px var(--mono);letter-spacing:.04em;padding:2px 7px;border-radius:5px;background:rgba(147,197,253,.16);color:#93c5fd}
+  .ctxt{font:400 12.5px var(--mono);line-height:1.5;word-break:break-word}
+  .cempty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#484f58;text-align:center;font:400 12.5px var(--mono)}
+  .cbtn{font:500 11px var(--mono);color:#8b949e;padding:4px 9px;border-radius:6px;border:1px solid #30363d}
+  .cbtn:hover{color:#c9d1d9;border-color:#484f58}
+
+  .result{flex:none;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:0 1px 2px rgba(16,24,40,.04);animation:fadein .22s ease}
+  .badge{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:20px;font:600 12px var(--sans)}
+  .chip{display:flex;align-items:center;gap:8px;padding:6px 11px;border-radius:9px;background:#fafbfc;border:1px solid var(--line2);font:400 11.5px var(--mono);color:#475467}
+  .chip b{font-weight:600;color:var(--ink)}
+  code.k{font:400 11.5px var(--mono);color:var(--ink);background:#f1f3f5;padding:3px 8px;border-radius:6px;border:1px solid var(--line)}
+</style>
+
+<header>
+  <div style="display:flex;align-items:center;gap:11px">
+    <div class="logo">&gt;_</div>
+    <div style="display:flex;flex-direction:column;line-height:1.1">
+      <span style="font:700 15px var(--sans);letter-spacing:-0.01em">sam-devkit</span>
+      <span style="font:500 10.5px var(--mono);color:#8a92a1;letter-spacing:.02em;margin-top:2px">approval workflow console</span>
+    </div>
+  </div>
+  <div class="seg">
+    <button type="button"><span class="dot" style="background:#8b949e"></span>local</button>
+    <button type="button"><span class="dot" style="background:#3fb950"></span>develop</button>
+    <button type="button" class="on"><span class="dot" style="background:#d29922"></span>qa</button>
+  </div>
+  <div style="flex:1"></div>
+  <div style="display:flex;align-items:center;gap:9px;background:#f8f9fb;border:1px solid var(--line);border-radius:9px;padding:6px 12px">
+    <span class="dot" style="background:#3fb950;box-shadow:0 0 0 3px rgba(63,185,80,.18)"></span>
+    <span style="font:400 12px var(--mono);color:#475467">https://web-qa.com/api</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT -->
+  <section class="panel scroll">
+
+    <div>
+      <div class="sect">Action</div>
+      <div class="acts">
+        <button type="button" class="act"><span class="g">✓</span><span class="t">Approve-through</span><span class="d">Run all role approvals</span></button>
+        <button type="button" class="act"><span class="g">⟳</span><span class="t">SAP fixup</span><span class="d">Reconcile SAP sync state</span></button>
+        <button type="button" class="act on"><span class="g">⧉</span><span class="t">Clone → Draft</span><span class="d">Copy proposal + details to a new Draft</span></button>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span class="sect" style="margin:0">Source proposal</span>
+        <span id="srcCount" style="font:400 10.5px var(--mono);color:var(--mut3)"></span>
+      </div>
+      <input id="q" class="inp" type="text" placeholder="search requestNo… e.g. R2600" spellcheck="false">
+      <div class="srcbox">
+        <div class="srchead"><span>RequestNo</span><span>Ver</span><span>Type</span><span>Status</span><span style="text-align:center">SAP</span></div>
+        <div id="rows" class="srclist scroll"></div>
+      </div>
+      <div id="srcWarn" class="warn" hidden></div>
+    </div>
+
+    <div id="modeSect" hidden>
+      <div class="sect">Clone mode</div>
+      <div class="modes">
+        <button type="button" class="mode" id="mVer" data-mode="new-version">
+          <span class="radio"></span>
+          <span><span class="mt">New version</span><br><span class="md">same RequestNo · version auto = max + 1</span></span>
+        </button>
+        <button type="button" class="mode" id="mNew" data-mode="new-proposal">
+          <span class="radio"></span>
+          <span><span class="mt">New proposal</span><br><span class="md">new RequestNo · version 0 — Type R / S only</span></span>
+        </button>
+        <div id="plock" class="plock" hidden>Type P keeps its RequestNo across months — only <b>New version</b> is allowed.</div>
+      </div>
+    </div>
+
+    <div id="reqSect" hidden>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span class="sect" style="margin:0">New RequestNo</span>
+        <button type="button" id="regen" style="font:600 10.5px var(--mono);color:var(--accent)">↻ suggest</button>
+      </div>
+      <input id="newReq" class="inp" type="text" placeholder="leave empty = auto-generate (J-S001-R2600078)" spellcheck="false">
+      <div style="font:400 10.5px var(--sans);color:var(--mut2);margin-top:6px;line-height:1.4">Empty = generate with the real format: <span style="font-family:var(--mono)">{org}-{saleOffice}-{type}{yy}{run 5 digits}</span>, next running under the prefix.</div>
+    </div>
+
+    <div id="targetSect" hidden>
+      <div class="sect">Target</div>
+      <div id="target" class="target"></div>
+    </div>
+
+    <div style="flex:1;min-height:4px"></div>
+    <button type="button" id="run" class="run">Run clone → draft</button>
+  </section>
+
+  <!-- RIGHT -->
+  <section class="right">
+    <div class="console">
+      <div class="chead">
+        <div style="display:flex;gap:6px">
+          <span style="width:11px;height:11px;border-radius:50%;background:#ff5f56"></span>
+          <span style="width:11px;height:11px;border-radius:50%;background:#ffbd2e"></span>
+          <span style="width:11px;height:11px;border-radius:50%;background:#27c93f"></span>
+        </div>
+        <span style="font:600 12px var(--mono);color:#8b949e;margin-left:4px">console</span>
+        <span id="lc" style="font:400 11px var(--mono);color:#484f58"></span>
+        <div style="flex:1"></div>
+        <button type="button" class="cbtn" id="clear">clear</button>
+      </div>
+      <div id="cbody" class="cbody cscroll">
+        <div class="cempty"><span style="font-size:24px">&gt;_</span><span style="max-width:320px;line-height:1.5">Pick a source proposal, choose a clone mode, and run — the clone log streams here.</span></div>
+      </div>
+    </div>
+
+    <div id="result" class="result" hidden>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+        <span class="sect" style="margin:0">Result</span>
+        <span class="badge" style="color:#8b6a1f;background:rgba(210,153,34,.14)"><span class="dot" style="background:#d29922"></span>Draft</span>
+        <span style="font:400 11.5px var(--mono);color:var(--mut2)">ProposalStatus=1</span>
+        <div style="flex:1"></div>
+        <span style="font:400 11.5px var(--mono);color:var(--mut)">newId</span>
+        <code class="k" id="newIdShort"></code>
+        <a href="#" onclick="return false" style="font:600 11px var(--sans);color:var(--accent);text-decoration:none">open ↗</a>
+      </div>
+      <div id="chips" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  var SOURCES = [
+    {id:'3f9a1c02-8d4e-4b17-9c6a-2b7f0e5d1a44', req:'J-S001-R2600013', ver:2, maxVer:2, type:'R', status:'Approved', sap:'success', tables:{ProposalDetail:1,ProposalCustomer:3,ProposalProduct:5,ProposalProductTypeRS:42,ProposalFile:2}},
+    {id:'a71e5b90-2c3d-4f81-b6e2-9d0c4a1f7e35', req:'J-S001-P2600005', ver:1, maxVer:1, type:'P', status:'Approved', sap:'success', tables:{ProposalDetail:1,ProposalCustomer:1,ProposalProduct:4,ProposalProductTypeP:4,ProposalFile:1}},
+    {id:'c04d7f18-6a92-4e3b-8f15-0b2e9c6d4a77', req:'J-S002-S2600032', ver:0, maxVer:0, type:'S', status:'Approved', sap:'fail', tables:{ProposalDetail:1,ProposalCustomer:2,ProposalProduct:6,ProposalProductTypeRS:58,ProposalFile:0}},
+    {id:'5b8e2d41-7f0a-4c93-a1d6-3e9b0c7a2f18', req:'J-S001-R2600021', ver:0, maxVer:0, type:'R', status:'Draft', sap:'', tables:{ProposalDetail:1,ProposalCustomer:1,ProposalProduct:2,ProposalProductTypeRS:12,ProposalFile:0}}
+  ];
+  var st = { src:null, mode:null, running:false, logs:0 };
+  var $ = function(id){ return document.getElementById(id); };
+
+  function sapDot(s){
+    if(s==='success') return '<span class="dot" style="background:var(--green)" title="success"></span>';
+    if(s==='fail') return '<span class="dot" style="background:var(--red)" title="fail"></span>';
+    return '<span style="font:400 10px var(--mono);color:#c5cbd4">—</span>';
+  }
+  function renderRows(){
+    var f = $('q').value.trim().toLowerCase();
+    var list = SOURCES.filter(function(s){ return !f || s.req.toLowerCase().indexOf(f)>=0; });
+    $('srcCount').textContent = list.length + ' found';
+    $('rows').innerHTML = list.map(function(s){
+      var on = st.src && st.src.id===s.id;
+      var stC = s.status==='Approved' ? 'var(--green)' : 'var(--mut2)';
+      return '<button type="button" class="srow'+(on?' on':'')+'" data-id="'+s.id+'">'
+        + '<span class="rq">'+s.req+'</span>'
+        + '<span class="vv">v'+s.ver+'</span>'
+        + '<span class="tb '+s.type+'">'+s.type+'</span>'
+        + '<span class="stt" style="color:'+stC+'">'+s.status+'</span>'
+        + '<span class="sap">'+sapDot(s.sap)+'</span></button>';
+    }).join('') || '<div style="padding:12px;text-align:center;font:400 11px var(--sans);color:var(--mut3)">No match</div>';
+    Array.prototype.forEach.call(document.querySelectorAll('.srow'), function(b){
+      b.addEventListener('click', function(){ pick(b.getAttribute('data-id')); });
+    });
+  }
+  function pick(id){
+    st.src = SOURCES.filter(function(s){ return s.id===id; })[0];
+    st.mode = 'new-version';
+    renderRows(); renderMode();
+  }
+  function renderMode(){
+    var s = st.src;
+    $('modeSect').hidden = !s;
+    if(!s){ $('reqSect').hidden = true; $('targetSect').hidden = true; renderRun(); return; }
+    var isP = s.type==='P';
+    if(isP && st.mode==='new-proposal') st.mode='new-version';
+    $('mVer').className = 'mode'+(st.mode==='new-version'?' on':'');
+    $('mNew').className = 'mode'+(st.mode==='new-proposal'?' on':'');
+    $('mNew').disabled = isP;
+    $('plock').hidden = !isP;
+    $('reqSect').hidden = st.mode!=='new-proposal';
+    var warn = s.status!=='Approved' ? 'Source is not Approved — devkit clones anyway (WARN in log).'
+             : (s.type==='P' && s.sap!=='success' ? 'Type P source without SAPStatus=success — real flow blocks this; devkit warns only.' : '');
+    $('srcWarn').hidden = !warn; $('srcWarn').textContent = warn;
+    renderTarget(); renderRun();
+  }
+  function targetOf(){
+    var s = st.src;
+    if(st.mode==='new-version') return { req:s.req, ver:s.maxVer+1, auto:'max+1', ym:'2026/07', ymNote:'current month' };
+    var typed = $('newReq').value.trim();
+    return { req: typed || 'J-S001-'+s.type+'2600078', ver:0, auto: typed ? 'user input' : 'auto-generated', ym:'2026/08', ymNote:'current month + 1' };
+  }
+  function renderTarget(){
+    if(!st.src){ $('targetSect').hidden = true; return; }
+    var t = targetOf();
+    $('targetSect').hidden = false;
+    $('target').innerHTML = '→ <b>'+t.req+'</b> · v'+t.ver
+      + ' <span style="color:var(--mut3)">('+t.auto+')</span>'
+      + '<span style="flex:1"></span><span style="color:var(--mut3)" title="'+t.ymNote+'">Draft · '+t.ym+'</span>';
+  }
+  function renderRun(){
+    var ok = !!st.src && !st.running;
+    $('run').className = 'run'+(ok?' ok':'');
+    $('run').innerHTML = st.running ? '<span class="spin"></span>Running…' : 'Run clone → draft';
+  }
+
+  var timers = [];
+  function ts(){ var d=new Date(),p=function(n,l){return String(n).padStart(l||2,'0')}; return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())+'.'+p(d.getMilliseconds(),3); }
+  function line(html, noTag){
+    var el = document.createElement('div'); el.className='cline';
+    el.innerHTML = '<span class="cts">'+ts()+'</span>'+(noTag?'':'<span class="ctag">KIT</span>')+'<span class="ctxt">'+html+'</span>';
+    $('cbody').appendChild(el); $('cbody').scrollTop = 1e9;
+    st.logs++; $('lc').textContent = st.logs+' lines';
+  }
+  function guid(){ var h=function(n){var s='';while(n--)s+=Math.floor(Math.random()*16).toString(16);return s}; return h(8)+'-'+h(4)+'-4'+h(3)+'-'+(8+Math.floor(Math.random()*4)).toString(16)+h(3)+'-'+h(12); }
+
+  $('run').addEventListener('click', function(){
+    if(!st.src || st.running) return;
+    st.running = true; st.logs = 0; renderRun();
+    $('cbody').innerHTML = ''; $('result').hidden = true;
+    var s = st.src, t = targetOf(), nid = guid();
+    var mut='#8b949e', dim='#6e7681', grn='#3fb950', amb='#d29922', blu='#58a6ff', txt='#c9d1d9';
+    var L = [];
+    L.push('<span style="color:'+mut+'">fetch source </span><span style="color:'+dim+'">'+s.req+' v'+s.ver+' ('+s.id.slice(0,8)+'…)</span>');
+    L.push('<span style="color:'+mut+'">source: </span><span style="color:'+txt+'">Type '+s.type+' · '+s.status+' · SAP '+(s.sap||'—')+'</span>');
+    if(s.status!=='Approved') L.push('<span style="color:'+amb+'">WARN source not Approved — cloning anyway</span>');
+    if(s.type==='P'&&s.sap!=='success') L.push('<span style="color:'+amb+'">WARN Type P without SAPStatus=success</span>');
+    L.push('<span style="color:'+blu+'">mode '+st.mode+'</span><span style="color:'+dim+'"> → target '+t.req+' v'+t.ver+' ('+t.auto+')</span>');
+    L.push('<span style="color:'+mut+'">uniqueness check '+t.req+' v'+t.ver+' — </span><span style="color:'+grn+'">OK</span>');
+    L.push('<span style="color:'+grn+'">INSERT Proposal </span><span style="color:'+dim+'">'+nid+' (Status=Draft, PreviousId='+s.id.slice(0,8)+'…, Year/Month=2026/07, SAPStatus reset)</span>');
+    Object.keys(s.tables).forEach(function(tb){
+      L.push('<span style="color:'+mut+'">copy '+tb+' — </span><span style="color:'+txt+'">'+s.tables[tb]+' row'+(s.tables[tb]===1?'':'s')+'</span>');
+    });
+    var resultObj = { newId:nid, requestNo:t.req, version:t.ver, status:'Draft', previousId:s.id, copied:s.tables };
+    L.push('<span style="color:'+blu+';font-weight:600">RESULT </span><span style="color:'+txt+'">'+JSON.stringify(resultObj)+'</span>');
+    timers.forEach(clearTimeout); timers=[];
+    L.forEach(function(html,i){
+      timers.push(setTimeout(function(){
+        line(html, i===L.length-1);
+        if(i===L.length-1){
+          st.running=false; renderRun();
+          $('newIdShort').textContent = nid.slice(0,12)+'…'+nid.slice(-4);
+          $('chips').innerHTML = '<div class="chip"><b>'+t.req+'</b> · v'+t.ver+'</div>'
+            + Object.keys(s.tables).map(function(tb){ return '<div class="chip">'+tb+' <b>'+s.tables[tb]+'</b></div>'; }).join('');
+          $('result').hidden = false;
+        }
+      }, 240+i*300));
+    });
+  });
+
+  $('clear').addEventListener('click', function(){
+    timers.forEach(clearTimeout); timers=[]; st.running=false; st.logs=0;
+    $('lc').textContent=''; $('result').hidden=true; renderRun();
+    $('cbody').innerHTML = '<div class="cempty"><span style="font-size:24px">&gt;_</span><span style="max-width:320px;line-height:1.5">Pick a source proposal, choose a clone mode, and run — the clone log streams here.</span></div>';
+  });
+  $('q').addEventListener('input', renderRows);
+  $('newReq').addEventListener('input', renderTarget);
+  $('regen').addEventListener('click', function(){ $('newReq').value = 'J-S001-'+(st.src?st.src.type:'R')+'26000'+(Math.floor(Math.random()*90)+10); renderTarget(); });
+  $('mVer').addEventListener('click', function(){ st.mode='new-version'; renderMode(); });
+  $('mNew').addEventListener('click', function(){ if(!$('mNew').disabled){ st.mode='new-proposal'; renderMode(); } });
+
+  renderRows(); renderRun();
+})();
+</script>

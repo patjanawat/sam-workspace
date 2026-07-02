@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Dev harness: create/clone a SAM proposal and drive it through the approval chain.",
+  "description": "Dev harness: drive a SAM proposal through the approval chain + SAP fixup.",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "build": "node build.mjs"
   }
 }
