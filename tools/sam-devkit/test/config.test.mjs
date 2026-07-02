@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadConfig, loadDbConfig } from '../lib/config.mjs';
+import { loadConfig, loadDbConfig, listEnvironments } from '../lib/config.mjs';
 
 const good = {
   apiBaseUrl: 'http://localhost:5000',
@@ -75,4 +75,75 @@ test('loadDbConfig passes through allowedServers', () => {
 test('loadDbConfig rejects non-array / non-string allowedServers', () => {
   assert.throws(() => loadDbConfig({ ...goodDb, db: { ...goodDb.db, allowedServers: 'x' } }), /allowedServers/);
   assert.throws(() => loadDbConfig({ ...goodDb, db: { ...goodDb.db, allowedServers: [1] } }), /allowedServers/);
+});
+
+// --- environments (named profiles) ---
+
+const envCfg = {
+  defaultEnv: 'local',
+  environments: {
+    local: { apiBaseUrl: 'http://localhost:5000', roles: good.roles },
+    qa: { apiBaseUrl: 'https://web-sam-qa.manaosoftware.com/api', roles: good.roles },
+  },
+};
+
+test('environments config resolves the default env', () => {
+  const cfg = loadConfig(envCfg);
+  assert.equal(cfg.apiBaseUrl, 'http://localhost:5000');
+  assert.equal(cfg.roles.cdr.email, 'a');
+  assert.equal(cfg.env, 'local');
+});
+
+test('loadConfig(envCfg, "qa") resolves the named env', () => {
+  const cfg = loadConfig(envCfg, 'qa');
+  assert.equal(cfg.apiBaseUrl, 'https://web-sam-qa.manaosoftware.com/api');
+  assert.equal(cfg.env, 'qa');
+});
+
+test('loadConfig(envCfg, "qa") auto-adds the qa host to allowedHosts', () => {
+  const cfg = loadConfig(envCfg, 'qa');
+  assert.ok(cfg.allowedHosts.includes('web-sam-qa.manaosoftware.com'));
+});
+
+test('unknown env throws', () => {
+  assert.throws(() => loadConfig(envCfg, 'nope'), /unknown environment/);
+});
+
+test('empty environments object throws', () => {
+  assert.throws(() => loadConfig({ environments: {} }), /environments is empty/);
+});
+
+test('missing role inside an env profile throws naming the env + role', () => {
+  const bad = {
+    environments: {
+      qa: { apiBaseUrl: 'https://qa.example.com', roles: { ...good.roles } },
+    },
+  };
+  delete bad.environments.qa.roles.cdr;
+  assert.throws(() => loadConfig(bad, 'qa'), /environment "qa".*cdr/);
+});
+
+test('listEnvironments returns env names + apiBaseUrls and no password fields', () => {
+  const list = listEnvironments(envCfg);
+  assert.deepEqual(list.envNames, ['local', 'qa']);
+  assert.equal(list.defaultEnv, 'local');
+  assert.deepEqual(list.environments, [
+    { name: 'local', apiBaseUrl: 'http://localhost:5000' },
+    { name: 'qa', apiBaseUrl: 'https://web-sam-qa.manaosoftware.com/api' },
+  ]);
+  const json = JSON.stringify(list);
+  assert.ok(!json.includes('password'));
+});
+
+test('listEnvironments on a flat config returns a single "default" env', () => {
+  const list = listEnvironments(good);
+  assert.deepEqual(list.envNames, ['default']);
+  assert.equal(list.defaultEnv, 'default');
+  assert.deepEqual(list.environments, [{ name: 'default', apiBaseUrl: 'http://localhost:5000' }]);
+});
+
+test('flat config (no environments) still resolves as before', () => {
+  const cfg = loadConfig(good);
+  assert.equal(cfg.apiBaseUrl, 'http://localhost:5000');
+  assert.equal(cfg.env, 'default');
 });

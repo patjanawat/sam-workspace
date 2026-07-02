@@ -13,8 +13,10 @@
   .ok { color: #0a0; } .err { color: #c00; }
 </style>
 <h1>sam-devkit</h1>
+<label>Environment</label>
+<select id="env"></select>
 <label>API base URL</label>
-<input id="apiBaseUrl" placeholder="http://localhost:5000">
+<input id="apiBaseUrl" placeholder="http://localhost:5000" readonly>
 <nav>
   <button data-tab="approve">Approve-through</button>
   <button data-tab="clone">Clone → approve</button>
@@ -73,7 +75,21 @@
 <pre id="log"></pre>
 <script>
   const $ = (id) => document.getElementById(id);
-  fetch('/config').then((r) => r.json()).then((c) => { $('apiBaseUrl').value = c.apiBaseUrl || ''; });
+  const envUrls = {};
+  fetch('/config').then((r) => r.json()).then((c) => {
+    const sel = $('env');
+    sel.innerHTML = '';
+    for (const e of c.environments || []) {
+      envUrls[e.name] = e.apiBaseUrl;
+      const opt = document.createElement('option');
+      opt.value = e.name;
+      opt.textContent = e.name;
+      sel.appendChild(opt);
+    }
+    sel.value = c.defaultEnv;
+    $('apiBaseUrl').value = envUrls[sel.value] || '';
+  });
+  $('env').onchange = () => { $('apiBaseUrl').value = envUrls[$('env').value] || ''; };
 
   function show(tab) {
     for (const s of ['approve', 'clone', 'create', 'sapfix']) $('tab-' + s).hidden = (s !== tab);
@@ -88,11 +104,11 @@
     for (;;) { const { value, done } = await reader.read(); if (done) break; logEl.textContent += dec.decode(value, { stream: true }); logEl.scrollTop = logEl.scrollHeight; }
   }
 
-  $('run').onclick = () => stream({ module: 'approve', apiBaseUrl: $('apiBaseUrl').value, proposalId: $('proposalId').value });
+  $('run').onclick = () => stream({ module: 'approve', env: $('env').value, proposalId: $('proposalId').value });
 
   $('cl-run').onclick = () => stream({
     module: $('cl-e2e').checked ? 'end-to-end-clone' : 'clone',
-    apiBaseUrl: $('apiBaseUrl').value,
+    env: $('env').value,
     submitAs: $('cl-submitAs').value,
     source: { requestNo: $('cl-requestNo').value, version: Number($('cl-version').value), salesOrgId: $('cl-salesOrgId').value, proposalGroupId: Number($('cl-groupId').value), customerGroupId: $('cl-cg').value },
     month: Number($('cl-month').value), year: Number($('cl-year').value),
@@ -100,7 +116,7 @@
 
   $('cr-run').onclick = () => stream({
     module: $('cr-e2e').checked ? 'end-to-end-create' : 'create',
-    apiBaseUrl: $('apiBaseUrl').value,
+    env: $('env').value,
     submitAs: $('cr-submitAs').value,
     type: $('cr-type').value, salesOrgId: $('cr-salesOrgId').value, customerGroupId: $('cr-cg').value,
     productIds: $('cr-products').value.split(',').map((s) => s.trim()).filter(Boolean),
@@ -110,7 +126,7 @@
 
   $('sf-run').onclick = () => {
     const status = $('sf-status').value;
-    const body = { module: 'sap-fixup', apiBaseUrl: $('apiBaseUrl').value, proposalId: $('sf-proposalId').value };
+    const body = { module: 'sap-fixup', env: $('env').value, proposalId: $('sf-proposalId').value };
     if (status !== '__leave__') body.sapStatus = status;
     const cn = $('sf-contractNo').value.trim();
     if (cn) body.contractNo = cn;

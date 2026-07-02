@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { assertDevHost } from './lib/guard.mjs';
-import { loadConfig, loadDbConfig } from './lib/config.mjs';
+import { loadConfig, loadDbConfig, listEnvironments } from './lib/config.mjs';
 import { setSapState } from './lib/sap-fixup.mjs';
 import { setProposalContract } from './lib/proposal-contract.mjs';
 import { createClient } from './lib/sam-client.mjs';
@@ -14,9 +14,9 @@ import { createProposal } from './lib/create.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8787;
 
-async function readConfig() {
+async function readRawConfig() {
   const txt = await readFile(join(HERE, 'config.json'), 'utf8');
-  return loadConfig(JSON.parse(txt));
+  return JSON.parse(txt);
 }
 
 function send(res, status, body, type = 'application/json') {
@@ -24,7 +24,7 @@ function send(res, status, body, type = 'application/json') {
   res.end(typeof body === 'string' ? body : JSON.stringify(body));
 }
 
-async function handleRun(req, res, cfg) {
+async function handleRun(req, res) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
 
@@ -38,7 +38,16 @@ async function handleRun(req, res, cfg) {
     res.write('ERROR Bad request body (invalid JSON)\n');
     return res.end();
   }
-  const apiBaseUrl = input.apiBaseUrl || cfg.apiBaseUrl;
+
+  let cfg;
+  try {
+    const rawCfg = await readRawConfig();
+    cfg = loadConfig(rawCfg, input.env);
+  } catch (e) {
+    res.write(`ERROR ${e.message}\n`);
+    return res.end();
+  }
+
   const module = input.module;
   if (typeof module !== 'string') {
     res.write('ERROR no module specified\n');
@@ -82,8 +91,8 @@ async function handleRun(req, res, cfg) {
   }
 
   try {
-    assertDevHost(apiBaseUrl, cfg.allowedHosts);
-    const client = createClient({ baseUrl: apiBaseUrl });
+    assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
+    const client = createClient({ baseUrl: cfg.apiBaseUrl });
 
     const submitter = input.submitAs === 'sam' ? cfg.roles.sam : cfg.roles.srp;
     let proposalId = input.proposalId;
@@ -124,18 +133,22 @@ async function handleRun(req, res, cfg) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    const cfg = await readConfig();
-    if (req.method === 'GET' && req.url === '/') {
+    const url = new URL(req.url, 'http://x');
+    if (req.method === 'GET' && url.pathname === '/') {
       const html = await readFile(join(HERE, 'index.html'), 'utf8');
       return send(res, 200, html, 'text/html; charset=utf-8');
     }
-    if (req.method === 'GET' && req.url === '/config') {
-      return send(res, 200, { apiBaseUrl: cfg.apiBaseUrl }); // never expose passwords
+    if (req.method === 'GET' && url.pathname === '/config') {
+      const raw = await readRawConfig();
+      return send(res, 200, listEnvironments(raw)); // env names + apiBaseUrls only — never passwords
     }
-    if (req.method === 'POST' && req.url === '/run') {
-      return await handleRun(req, res, cfg);
+    if (req.method === 'POST' && url.pathname === '/run') {
+      return await handleRun(req, res);
     }
-    if (req.method === 'GET' && req.url === '/options') {
+    if (req.method === 'GET' && url.pathname === '/options') {
+      const raw = await readRawConfig();
+      const env = url.searchParams.get('env');
+      const cfg = loadConfig(raw, env);
       assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
       const client = createClient({ baseUrl: cfg.apiBaseUrl });
       const { token } = await client.login(cfg.roles.srp);

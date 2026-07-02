@@ -11,6 +11,34 @@ node server.mjs                        # http://localhost:8787
 ```
 Requires Node 18+. No `npm install` — zero dependencies.
 
+## Environments
+
+`config.json` can hold multiple named environment profiles instead of one flat config:
+
+```json
+{
+  "defaultEnv": "local",
+  "environments": {
+    "local":   { "apiBaseUrl": "http://localhost:5000", "roles": { ... }, "db": { ... } },
+    "develop": { "apiBaseUrl": "https://web-sam-dev.manaosoftware.com/api", "roles": { ... } },
+    "qa":      { "apiBaseUrl": "https://web-sam-qa.manaosoftware.com/api", "roles": { ... } }
+  }
+}
+```
+
+The UI shows an **Environment** dropdown (populated from `GET /config`) so you can switch
+between `local` / `develop` / `qa` without editing `config.json` — the API base URL field just
+displays the selected env's URL and is read-only. Each env has its own `roles` (and optional
+`db` block for SAP fixup); nothing is shared across envs.
+
+Configuring an environment is itself the opt-in: each profile's `apiBaseUrl` host is
+automatically added to that profile's `allowedHosts`, so the dev-host guard passes for any
+env you've deliberately set up — you don't need a separate `allowedHosts` entry just to use it.
+Hosts not covered by an env profile (or its explicit `allowedHosts`) are still refused.
+
+**Backward compatible:** a flat config — `{ apiBaseUrl, roles, db, allowedHosts }` with no
+`environments` key — still works exactly as before, as an implicit single `"default"` environment.
+
 ## Prerequisites (dev env)
 - Role accounts for `srp, sam, sdm, pte, cdr` that log in.
 - **Approval chain (full):** either submit as `srp` with `srp.ReportToId = sam`, OR submit as `sam`

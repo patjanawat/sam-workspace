@@ -1,20 +1,51 @@
 const REQUIRED_ROLES = ['srp', 'sam', 'sdm', 'pte', 'cdr'];
 
-export function loadConfig(raw) {
-  if (!raw || typeof raw !== 'object') throw new Error('config.json: not an object');
-  if (!raw.apiBaseUrl) throw new Error('config.json: missing apiBaseUrl');
-  if (!raw.roles) throw new Error('config.json: missing roles');
+function validateProfile(p, label) {
+  if (!p || typeof p !== 'object') throw new Error(`config.json: ${label} not an object`);
+  if (!p.apiBaseUrl) throw new Error(`config.json: ${label} missing apiBaseUrl`);
+  if (!p.roles) throw new Error(`config.json: ${label} missing roles`);
   for (const r of REQUIRED_ROLES) {
-    const a = raw.roles[r];
-    if (!a || !a.email || !a.password) {
-      throw new Error(`config.json: role "${r}" needs { email, password }`);
-    }
+    const a = p.roles[r];
+    if (!a || !a.email || !a.password) throw new Error(`config.json: ${label} role "${r}" needs { email, password }`);
   }
-  const allowedHosts = raw.allowedHosts ?? [];
+  const allowedHosts = p.allowedHosts ?? [];
   if (!Array.isArray(allowedHosts) || allowedHosts.some((h) => typeof h !== 'string')) {
-    throw new Error('config.json: allowedHosts must be an array of strings');
+    throw new Error(`config.json: ${label} allowedHosts must be an array of strings`);
   }
-  return { apiBaseUrl: raw.apiBaseUrl, roles: raw.roles, db: raw.db, allowedHosts };
+}
+
+// Non-secret env summary for the UI dropdown (names + apiBaseUrl only — never passwords/roles).
+export function listEnvironments(raw) {
+  if (raw && raw.environments && typeof raw.environments === 'object') {
+    const names = Object.keys(raw.environments);
+    if (!names.length) throw new Error('config.json: environments is empty');
+    const defaultEnv = raw.defaultEnv && names.includes(raw.defaultEnv) ? raw.defaultEnv : names[0];
+    return { envNames: names, defaultEnv, environments: names.map((n) => ({ name: n, apiBaseUrl: raw.environments[n]?.apiBaseUrl ?? '' })) };
+  }
+  return { envNames: ['default'], defaultEnv: 'default', environments: [{ name: 'default', apiBaseUrl: raw?.apiBaseUrl ?? '' }] };
+}
+
+// Resolve one environment to a flat profile the rest of the app already understands.
+// The profile's OWN host is auto-added to allowedHosts (configuring an env = the explicit opt-in),
+// so the dev-host guard passes for configured envs while unconfigured hosts stay blocked.
+export function loadConfig(raw, envName) {
+  if (!raw || typeof raw !== 'object') throw new Error('config.json: not an object');
+  let profile, env;
+  if (raw.environments && typeof raw.environments === 'object') {
+    const names = Object.keys(raw.environments);
+    if (!names.length) throw new Error('config.json: environments is empty');
+    env = envName || raw.defaultEnv || names[0];
+    profile = raw.environments[env];
+    if (!profile) throw new Error(`config.json: unknown environment "${env}"`);
+    validateProfile(profile, `environment "${env}"`);
+  } else {
+    env = 'default';
+    validateProfile(raw, 'config');
+    profile = raw;
+  }
+  const allowedHosts = [...(profile.allowedHosts ?? [])];
+  try { allowedHosts.push(new URL(profile.apiBaseUrl).hostname); } catch { /* invalid URL surfaces later in assertDevHost */ }
+  return { apiBaseUrl: profile.apiBaseUrl, roles: profile.roles, db: profile.db, allowedHosts, env };
 }
 
 export function loadDbConfig(cfg) {
