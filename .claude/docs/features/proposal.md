@@ -192,9 +192,9 @@ Key differences:
 
 ### Baseline มาจาก **BE** (ไม่ใช่ localStorage)
 - baseline = `max(RATE)` ต่อ `(PAGE, PRODUCT_CODE, RATE_TYPE)` ของ **previous proposal** (`Proposal.PreviousId`, level เดียว)
-- BE inject ลง `meta.pmLastStep` ของ payload ตอน `GetProposalDetailById` → FE อ่านอย่างเดียว → **request + approval + ทุก user เห็นเหมือนกัน** (เดิมใช้ localStorage → approval อ่านไม่ได้ = บั๊ก)
+- BE inject ลง `meta.pmLastStep` ของ payload ตอน `GetProposalDetailById` → FE อ่านตรง ๆ **เฉพาะตอนดู proposal** → **request + approval + ทุก user เห็นเหมือนกัน** (เดิมใช้ localStorage → approval อ่านไม่ได้ = บั๊ก). **ยกเว้นตอน clone (`isCopy`)** — FE rebuild เอง (ดู § Clone stale-generation ด้านล่าง)
 - BE key files: `Features/ProposalDetails/GetByIdQuery/GetProposalDetailByIdQueryHandler.cs` (`BuildPmMaxBaselineAsync` group ด้วย raw PAGE + `CollapseToLastPagePerSection`) + `Shared/Helpers/RebateHelpers.cs` (`RateTypeToSectionKey` = single source of truth, `InjectPmMaxBaseline`, **`ReindexBaselinePages`** remap gappy PAGE → contiguous)
-- FE: `mapper/rebate-footer.mapper.tsx` (Current = `accumulateMaxBySection`; Latest = `sumBaselineByProduct(pmBaselineBySection)`), `mapper/summary-rebate.mapper.tsx` (per-section row อ่าน `meta.pmLastStep` ก่อน + ซ่อนเมื่อไม่มี range), `components/rebate/PmMaxStep.tsx` (editable, return null เมื่อไม่มี range), `RebateWrapper.tsx` (clone hydrate reset `isAddedPage`; `applyPmMaxToRowsMeta` override เฉพาะ added page)
+- FE: `mapper/rebate-footer.mapper.tsx` (Current = `accumulateMaxBySection`; Latest = `sumBaselineByProduct(pmBaselineBySection)`), `mapper/summary-rebate.mapper.tsx` (per-section row อ่าน `meta.pmLastStep` ก่อน + ซ่อนเมื่อไม่มี range), `mapper/rebate.apply.ts` (lift `meta.pmLastStep` → formValues; **isCopy rebuild = max(new)**), `components/rebate/PmMaxStep.tsx` (editable, return null เมื่อไม่มี range), `RebateWrapper.tsx` (clone hydrate reset `isAddedPage`; `applyPmMaxToRowsMeta` override เฉพาะ added page)
 
 ### RATE_TYPE → section key (รองรับ Type R + S)
 | RATE_TYPE | code | section key | type |
@@ -221,6 +221,15 @@ Key differences:
 - **scenario:** clone chain v0 → v1 → v2 (`J-S002-R2600013`, Type S) — เดิม v2 หน้า 1 โชว์ P.M. Max ผิด (Normal=`1` ควร `3`), หน้า 2 ถูก (`6`) → per-page ไม่ตรง baseline
 - **after fix:** P.M. Max row = baseline คงที่ทุก page + Summary (Normal `3` / Special `6` / Freight `9` / Loyalty `10`) แม้แก้ค่า `new` ต่อหน้า (หน้า2 Normal `23/22/21`, หน้า3 `33/32/31` → PM Max ยัง `3`)
 - **footer reconcile:** Current `399` = `accumulateMaxBySection` last-page-per-section (`1 + 33[p3] + 26[p2] + 29[p2] + 310[p3]`); Latest Approved `29` = baseline (`1+3+6+9+10`, คงที่ทุกหน้า); Changed `370` = `399−29` — ครบทั้ง 3 ค่า ไม่ regression (QA screenshot 2026-06-30)
+- ⚠️ residual พบ 2026-07-02 → SAM-1810 รอบ 2 ด้านล่าง
+
+### Clone stale-generation baseline (SAM-1810 รอบ 2, branch `bugfix/SAM-1810-clone-pm-max-stale-generation`)
+- **อาการ:** clone v1→v2 → P.M. Max หน้า 1 ของ v2 โชว์ค่า **v0** (ข้ามรุ่น) เช่น v1 approved 31/61/91/121 แต่โชว์ 30/60/90/120; หน้า 2 "ดูถูก" แค่บังเอิญ
+- **root cause:** clone rebate step fetch `GET(sourceId=v1)` (`getRefId`, `request.util.ts`) → BE inject `meta.pmLastStep` = baseline ของ `v1.PreviousId` = **v0** — ถูกสำหรับ "ดู v1", stale 1 รุ่นสำหรับ "สร้าง v2". FE lift verbatim ตั้งแต่ `f56ff940` (PR #1435 ลบ isCopy rebuild → แลกบั๊ก last-row-overwrite เดิมกับ stale-generation)
+- **fix (FE-only, `mapper/rebate.apply.ts`, commit `83f64e0a`):** ตอน `isCopy` rebuild `pmLastStep` = **`Math.max(new)` ต่อ product ต่อ section** จาก rows ของ source เอง (`maxNewByProduct` + `resolvePmValue`) — ต้อง max ทุก row **ไม่ใช่ last row** (บั๊ก Type S เดิมที่ PR #1435 พยายามแก้); non-copy ใช้ BE meta ตามเดิม
+- **latent bug คู่กัน (เจอจาก test):** isCopy loop `old:=new` เคยทับ bucket `values.<section>.pmLastStep` เป็น `{old:undefined,new:undefined}` → sticky baseline หาย — fix: skip key `PM_BUCKET` (file-local const `'pmLastStep'`, ชื่อเดียวกับ `PmMaxStep.tsx`, commit `01200b7a`)
+- **ทำไมหน้า 2 เดิมดูถูก:** `rowsMeta.pmLastStep` absent (added-page strip ใน v1) → `PmMaxStep` fallback `lastOld` ซึ่ง old=new บน clone → ตรงโดยบังเอิญ ไม่ใช่ logic ถูก
+- **verify:** one-off tsx script 9/9 (repo ไม่มี FE test framework) + tsc + eslint clean — รายละเอียด `tasks/SAM-1810/`
 
 ---
 
