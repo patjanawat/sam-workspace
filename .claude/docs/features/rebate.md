@@ -37,16 +37,28 @@ Tracked in `CloseMonths` table. Steps ต้องทำตามลำดับ
 
 | Method | Path | Operation | Auth Policy |
 |--------|------|-----------|-------------|
-| `POST` | `/rebates/calculate-agreement` | Calculate Agreement (sync, 5-min timeout) | Authorized |
-| `POST` | `/rebates/calculate-agreement/jobs` | Calculate Agreement (async Hangfire) | Authorized |
-| `GET` | `/rebates/calculate-agreement/jobs/{id}/events` | SSE progress stream | ⚠️ No auth (TODO comment in code) |
-| `POST` | `/rebates/send-to-sap` | Send Agreement to SAP | Authorized |
-| `POST` | `/rebates/calculate-accrued-sum` | Calculate Accrued Sum (sync) | Authorized |
-| `POST` | `/rebates/calculate-accrued-sum/jobs` | Calculate Accrued Sum (async Hangfire) | Authorized |
-| `GET` | `/rebates/export/agreement` | Export Agreement to Excel | `adt` or higher |
-| `GET` | `/rebates/export/accrued-sum` | Export Accrued Sum to Excel | `adt` or higher |
+| `GET` | `/rebates/get-step` | Step status ของ period (stepper + button gating) | Authorized |
+| `GET` | `/rebates/calculate-agreement` | Calculate Agreement (sync, 5-min timeout) | Authorized |
+| `POST` | `/rebates/calculate-agreement/jobs` | Calculate Agreement (async Hangfire) — **FE ใช้ตัวนี้** | Authorized |
+| `GET` | `/rebates/calculate-agreement/jobs/{id}/events` | SSE progress stream (ใช้ร่วมทุก job) | ⚠️ No auth (TODO comment in code) |
+| `GET` | `/report/send-to-sap` | **Send Agreement to SAP** — GET แต่ mutate state (dedup `JobIdProcessing` → enqueue `CreateRebateAsync`) | Authorized |
+| `GET` | `/rebates/calculate-accrued-sum` | Calculate Accrued Sum (sync) | Authorized |
+| `POST` | `/rebates/calculate-accrued-sum/jobs` | Calculate Accrued Sum (async Hangfire) — **FE ใช้ตัวนี้** | Authorized |
+| `GET` | `/rebates/report-agreement` | Export Agreement to Excel | Authorized (bare) |
+| `GET` | `/rebates/report-accrued-sum` | Export Accrued Sum to Excel | Authorized (bare) |
+| `PUT` | `/close-months/{period}` | Mark End of Month (stamp `CloseMonthDate`) | Authorized |
 | `GET` | `/rebates/options` | Rebate row options (for Proposal form) | Authorized |
-| `GET` | `/report/send-to-sap` | Rebate report page | Authorized |
+
+> ⚠️ **ทุก endpoint = `RequireAuthorization()` เปล่า — role gate (adt = export-only) enforce ฝั่ง FE เท่านั้น** (`RebatesWrapper.tsx` เช็ค `currentRoleCode === 'adt'`); ยิง API ตรงได้ทุก role
+
+### Button gating (FE `RebatesWrapper.tsx`)
+- ปุ่มทุกตัว disabled จนกว่าเลือกปี+เดือน
+- Calculate Agreement: ล็อคถาวรหลังสำเร็จ (คำนวณซ้ำไม่ได้ — แก้ได้ทาง DB เท่านั้น)
+- Send to SAP: ต้อง step1 เสร็จ, ส่งได้ครั้งเดียว, มี confirm modal irreversible
+- Calculate Accrued: ต้อง step2 (ส่ง SAP) เสร็จก่อน
+- Mark End of Month: ต้อง step2 + step3 ครบ
+- Export 2 ปุ่ม: เปิดเมื่อ step ที่เกี่ยวข้องเสร็จ, กดซ้ำได้ตลอด (adt กดได้เฉพาะ 2 ปุ่มนี้)
+- FE ตีความ job `ReturnValue > 0` = มีข้อมูล (0 → toast "สำเร็จแต่ไม่มีข้อมูล") ทั้งสอง Calculate
 
 ---
 
@@ -102,7 +114,7 @@ Both Agreement and Accrued Sum support:
 
 7. **ProposalRebate ≠ Month-End Rebate**: `RebatePayload`, `AccumPayload`, `SpecialPayload` on ProposalDetail are JSON strings set by Sale Rep — completely separate from this feature.
 
-8. **`/report/send-to-sap` vs `/rebates/send-to-sap`**: rebate report page is a separate flow for close-month rebate data, guarded by `CloseMonth.JobIdProcessing`. Not the same as SAP Sync feature.
+8. **`GET /report/send-to-sap` = ปุ่ม Send to SAP** (อยู่ `Features/Report/SendToSAP/` ไม่ใช่ `Features/Rebates/`): HTTP GET แต่ mutate state — dedup ด้วย `CloseMonth.JobIdProcessing` (job ค้าง → คืน `existing_processing`) แล้ว enqueue Hangfire `ISapGenerateService.CreateRebateAsync`. คนละตัวกับ SAP Sync feature.
 
 9. **ADO.NET for stored procs**: cannot use EF Core for these calls — stored procs use SQL Server OUTPUT parameters that require `SqlCommand.ExecuteNonQuery` + `SqlParameter(direction=Output)`.
 

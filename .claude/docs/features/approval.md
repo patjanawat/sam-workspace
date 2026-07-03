@@ -50,6 +50,66 @@ Both tracks serve the same query shape (`GetApprovalsQuery`) and use the same un
 
 ---
 
+## Detail Overview — ตาราง "รายละเอียด / Details"
+
+หน้า approval detail (`/approval/{id}` FE) tab Overview แสดงตารางสรุป discount/rebate ต่อ product. **BE คำนวณเสร็จ ส่งเป็น string format แล้ว (`"#,##0"`, ตัดทศนิยมเป็น int)** — FE mapper (`features/approval/mapper/approval.mapper.ts` `mapR/mapS/mapP`) เป็น pass-through ล้วน ไม่คำนวณอะไร.
+
+### Data flow
+
+```
+FE page → useGetApprovalById(id, role)
+  role 'sam' → GET /approval/sam/{id}   (Features/Approval/Sam/GetById/)
+  role อื่นทั้งหมด (sdm/pte/cdr) → GET /approval/sdm/{id}   (Features/Approval/Sdm/GetById/)
+→ handler branch ตาม ProposalGroupCode → DetailTypeR / DetailTypeS / DetailTypeP
+→ FE map → ViewRebateInformation เลือก column set ตาม role+type
+  (constants/rebate-columns.ts: RB_SAM_TYPE_{R,S,P} vs RB_SDM_PT_CD_TYPE_{R,S,P})
+```
+
+- SAM เห็นชุดสั้น (rebate breakdown); SDM/PTE/CDR เห็นชุดยาว (เพิ่ม Price EXW, UCM, Var-Cost, Comm. Margin, % vs Price List)
+- Logic Type R/S/P แยกไฟล์: `OverviewDetailTypeR.cs`, `OverviewDetailTypeS.cs`, `OverViewDetailTypeP.cs` — **ซ้ำกันระหว่าง Sam/ กับ Sdm/ อีกชั้น** → แก้สูตรต้องแก้หลายที่
+
+### Grain rule (Type R/S — ทุกช่อง rate)
+
+ต่อ `(PRODUCT_CODE, RATE_TYPE)`: เอาหน้าสุดท้าย `max(PAGE)` → เอา `max(RATE)` บนหน้านั้น → cast `int` (ทศนิยมถูกตัด). Exclude `SR2/AR1/SR4/AR2` (Special Additional + Accumulate — แสดงแยก card, เฉพาะ Type S). ค่าเดือนก่อน (PM) = query เดียวกันบน `Proposal.PreviousId` (1 ระดับ) จับคู่ `PRODUCT_CODE` — ไม่เจอ = 0.
+
+### Source ราย column (SAM · Type R)
+
+ทุกค่าอ่านจาก **`dbo.ProposalProductTypeRS`** (stamp ตอน save rebate โดย `CreateProposalProductDiscountRebate.cs` — delete + re-insert ทุกครั้ง):
+
+| Column UI | Source | Filter / สูตร |
+|---|---|---|
+| Price List | `PRICE_LIST` | snapshot จาก `warehouse.Product` |
+| Disc. | `RATE` | `RATE_TYPE='Discount'` + grain rule |
+| Nor./Spec./Frei. Reb., Lyt. Prog. | `RATE` | `NR1`/`SR1`/`FR1`/`SR3` + grain rule |
+| Net Freight | `SUBSIDY` | **label หลอก — ค่าจริงคือ Freight Subsidy** snapshot จาก `warehouse.Subsidy.FREIGHT_SUBSIDY_BT` |
+| Tot. Disc./Reb. | คำนวณ | `Disc + NR1 + SR1 + FR1 + SR3` (**ไม่รวม SUBSIDY**) |
+| PM. Disc./Reb. | คำนวณ | สูตรเดียวกันบนแถวของ `PreviousId` |
+| vs PM. Disc. | คำนวณ | `Disc(cur) − Disc(prev)` — discount อย่างเดียว |
+| vs PM. Reb. | คำนวณ | `ΣRebate(cur) − ΣRebate(prev)` — rebate 4 ตัว ไม่รวม discount |
+
+### Type P — คนละ table คนละ grain
+
+- Table: **`ProposalProductTypeP`** — `RATE` ก้อนเดียว = ส่วนลดรวม (ไม่มี rebate ย่อย), มี `SHIP_TO`
+- Grain: 1 แถว = `(PRODUCT_CODE, SHIP_TO, PAGE)` — **โชว์ทุกหน้า ไม่ยุบเหลือหน้าสุดท้าย**
+- PM จับคู่ `(PRODUCT_CODE, SHIP_TO, PAGE)` **เลขหน้าเดียวกันตรง ๆ** — previous ที่ PAGE ไม่ต่อเนื่อง (gapped หลังลบ page) → จับคู่ miss → PM = 0. **ยังไม่มี reindex fix** แบบ `ReindexBaselinePages` ของ R/S (ดู proposal.md § Gapped PAGE)
+- Column: Ship To, Price List, Net Freight, Tot. Disc., PM. Disc., vs PM. Disc. — ไม่มี vs PM. Reb.
+
+### Net Freight (SUBSIDY) — chain ที่มา
+
+```
+ACCDW linked server view View_SAM_FreightSubsidy (สูตรอยู่นอก repo — freight จริงเฉลี่ย บาท/ตัน)
+→ sp_Sync_Subsidy (Sql/PamDB/Store-view/sp_Sync_warehouse.sql) MERGE เข้า warehouse.Subsidy
+   (key: PERIOD+ORGNO+PRODUCT_CODE, soft delete)
+→ ตอน save rebate: TOP 1 ORDER BY PERIOD DESC ต่อ (SaleOrg, Product) → ROUND เป็น int
+   → stamp ลง ProposalProductTypeRS.SUBSIDY / ProposalProductTypeP.SUBSIDY
+```
+
+- **Snapshot at save-time** — sync subsidy ใหม่หลัง save ไม่เปลี่ยนหน้า approval (จนกว่าจะ save detail ใหม่)
+- Lookup ไม่สน month/year ของ proposal — เอา PERIOD ล่าสุดเสมอ
+- ⚠️ migration `20260702023338` เพิ่ม `CUS_SOL_CODE` เข้า `Subsidy` แล้ว แต่ lookup ตอน stamp **ยังไม่ filter customer** — ถ้า master แตก grain รายลูกค้า `TOP 1` จะ non-deterministic
+
+---
+
 ## Key Backend Endpoints
 
 | Method | Path | Operation | Auth Policy |
@@ -211,6 +271,12 @@ Business rules enforced in `UpdateApprovalSettingHandler`:
 9. **SAM GetById enforces ownership**: checks `proposal.SaleId == currentUser.UserId` OR the sale user has `ReportToId == currentUser.UserId`. Violations throw `ApiForbiddenException`. SDM handler has no such check.
 
 10. **Progress always returns 4 slots**: `ApprovalProgressQueryHandler` pads the `progress[]` array to exactly 4 elements regardless of completion state.
+
+11. **Policy vs ownership ขัดกัน (SAM GetById)**: policy `SaleAreaManager` เปิดให้ System Admin / Finance / Auditor เข้า route ได้ แต่ ownership check (ข้อ 9) บังคับเจ้าของ/direct manager → role เหล่านั้นโดน 403 เสมอ. ใช้งานจริงได้เฉพาะ ASM ดูของตัวเอง + ลูกทีม direct 1 ระดับ (ไม่ recursive — skip-level ดูไม่ได้)
+
+12. **Detail overview คำนวณฝั่ง BE เป็น string แล้ว**: DTO ส่ง `"#,##0"` formatted + int truncation — FE `fmt()` แค่ re-parse. อย่าไปหา logic คำนวณใน FE mapper (pass-through). และ `PriceList`/`SUBSIDY`/`VAR_COST` มาจาก `g.First()` โดยไม่ sort → non-deterministic ถ้า data ใน product เดียวกันไม่ uniform
+
+13. **GetById ไม่ filter status**: Draft/Temp ก็เปิดดูได้ถ้า ownership ผ่าน; `ProposalDetails` ใช้ `SingleOrDefaultAsync` — detail row เกิน 1 → 500
 
 ---
 
