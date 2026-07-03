@@ -146,7 +146,7 @@ See `.claude/agents/AGENT_TRIGGERS.md` for routing rules and trigger keywords.
 - **Always create a new branch before making any code changes** — never work directly on `develop` or `master`
 - **Never make any code change without explicit user confirmation** — present the plan, wait for "yes" or "confirm", then proceed
 - **Never commit or push without explicit user confirmation**
-- **NEVER modify any files inside `web/`** — do NOT edit any FE or BE source files under `web/` (including `web/web/backend/` and `web/web/frontend/`) unless explicitly instructed
+- **NEVER modify any files inside `web/`** — do NOT edit any FE or BE source files under `web/` (including `web/web/backend/` and `web/web/frontend/`) unless explicitly instructed. **Exception:** `web/web/wiki/` (team knowledge base inside the SAM repo, docs only) — updated as part of the standard workflow below
 - `web/` is a symlink — always use `git -C web` for git operations inside the SAM repo
 
 ### Workflow for Every Task
@@ -167,8 +167,14 @@ Each ticket has a scratchpad folder at `tasks/<TICKET>/` (gitignored) containing
    refactor/short-description
    ```
 3. **Implement** — delegate to specialist agents — update `progress.md` Log with each meaningful state change
-4. **Summarize what was done** — list files changed — wait for confirmation
-5. **Commit & push** — only after explicit user confirmation — append commit hash + push status to `progress.md` Log
+   - If friction is hit during the task (missing docs, broken setup, surprising behavior) → append an entry to `web/web/wiki/_run-issues.md`
+4. **Update wiki** — team KB at `web/web/wiki/` (in the SAM repo since 2026-05-26; catalog: `_index.md`, feature pages `raw/WEB-001..012.md`):
+   - Write `web/web/wiki/raw/<TICKET>.md` — frontmatter `source_id: SAM-XXXX` + `informs: raw/WEB-XXX.md` (the feature page it enriches); follow the format of existing pages in `raw/` (e.g. `raw/SAM-1762.md`)
+   - Add a row to the **Reference** table in `_index.md` (`— source ticket`)
+   - Update the informed `WEB-XXX` feature page if the ticket changed its behavior
+   - Committed **together with the code change on the same branch** (per `web/web/AGENTS.md`: "wiki/ — documentation, automatically generated after task done")
+5. **Summarize what was done** — list files changed — wait for confirmation
+6. **Commit & push** — only after explicit user confirmation — append commit hash + push status to `progress.md` Log
 
 ---
 
