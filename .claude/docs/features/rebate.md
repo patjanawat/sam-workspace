@@ -22,7 +22,7 @@ Rebate ใน SAM มี 2 ส่วนที่แยกกัน:
 
 ## 4-Step Month-End Workflow
 
-Tracked in `CloseMonths` table. Steps ต้องทำตามลำดับ:
+Tracked in `CloseMonths` table (1 แถวต่องวด `Period` = YYYYMM). Steps ต้องทำตามลำดับ:
 
 | Step | Action | Stamps field |
 |------|--------|-------------|
@@ -30,6 +30,55 @@ Tracked in `CloseMonths` table. Steps ต้องทำตามลำดับ
 | 2 | Send Agreement to SAP | `SendToSAPDate` |
 | 3 | Accrued Accumulated Rebate | `CalculateAccumulateDate` |
 | 4 | End of Month (close) | `CloseMonthDate` |
+
+### ข้อมูลตั้งต้น (ก่อน Step 1)
+
+```
+Proposal ถูก CDR approve (ขั้นสุดท้าย)
+   └→ insert แถวลง dbo.proposal_for_cal   ← "วัตถุดิบ" ของการคำนวณ rebate ทั้งหมด
+      (1 แถวต่อ ลูกค้า × สินค้า × rate type × tier: orgno, soldto, pcode, drtype,
+       fromdate–todate, fromqty–toqty, rate, method, page ...)
+```
+
+### Step-by-step: Input → Process → Output
+
+**Step 1 — Calculate SAP Agreement**
+- **Input**: ปี+เดือน + แถว `dbo.proposal_for_cal` ของงวด
+- **Process**: Hangfire job รัน `sp_sel_rebate_monthend(@pyear,@pmonth)` — **guard**: `dbo.Agreement` มีข้อมูลงวดนี้แล้ว → return "Success" ทันที ไม่คำนวณซ้ำ ไม่ลบของเดิม; loop 2 org (S854, S899) คำนวณ tier/rate ต่อ (ลูกค้า × สินค้า × ประเภท rebate); FE ฟัง SSE
+- **Output**: แถวใหม่ใน **`dbo.Agreement`** + stamp `CalculateSAPDate`
+- Export SAP Agreement (`GET /rebates/report-agreement`) อ่านตรงจาก `dbo.Agreement` → `Rebate_Report_Month_End_*.xlsx` (21 columns)
+
+**Step 2 — Send Agreement to SAP**
+- **Input**: แถว `dbo.Agreement` ของงวด
+- **Process**: confirm modal (irreversible) → เช็ค `CloseMonths.JobIdProcessing` (job ค้าง → คืน `existing_processing` ไม่ยิงซ้ำ) → enqueue `ISapGenerateService.CreateRebateAsync` → สร้าง rebate agreement ฝั่ง **SAP ERP** → SSE จนจบ
+- **Output**: agreement ใน SAP + stamp `SendToSAPDate` + เคลียร์ `JobIdProcessing` — ส่งได้ครั้งเดียว
+
+**Step 3 — Accrued Accumulated Rebate**
+- **Input**: `dbo.proposal_for_cal` เฉพาะแถว `drtype` ขึ้นต้น **'AR'** (accumulate ข้ามเดือน)
+- **Process**: job รัน `sp_sel_ar_dw(@pyear,@pmonth)` — คำนวณสะสม กระจายงวดขาย (sd) / งวดลงบัญชี (fi) → เคลียร์แล้วเขียน `AR_DW_TYPE_Z` + เติม `AR_DW`
+- **Output**: แถวใน **`dbo.AR_DW`** + **`dbo.AR_DW_TYPE_Z`** + stamp `CalculateAccumulateDate`
+- Export Accrued Sum (`GET /rebates/report-accrued-sum`) อ่านจาก view **`View_Report3_AR`** filter `fiperiod > งวดที่เลือก` (งวดบัญชีถัดไป — intended)
+
+**Step 4 — End of Month**
+- **Input**: งวดที่ step 2 **และ** 3 เสร็จครบ
+- **Process**: confirm modal → `PUT /close-months/{period}`
+- **Output**: stamp `CloseMonthDate` → **ล็อคงวด** สร้าง/submit proposal เดือนนั้นไม่ได้อีก; ทุกปุ่ม action ล็อค เหลือ export
+
+### แผนผังรวม
+
+```
+proposal_for_cal (จาก CDR approve)
+   │
+   ▼ Step 1: sp_sel_rebate_monthend ──► dbo.Agreement ──► Export xlsx
+   │                                        │
+   ▼ Step 2: CreateRebateAsync ◄────────────┘ ──► SAP ERP
+   │
+   ▼ Step 3: sp_sel_ar_dw (เฉพาะ AR*) ──► AR_DW + AR_DW_TYPE_Z ──► Export xlsx (fiperiod > งวด)
+   │
+   ▼ Step 4: PUT /close-months ──► ล็อคงวด
+```
+
+> จำง่าย: Step 1 = คำนวณข้อตกลงในระบบ · Step 2 = ส่งข้อตกลงเข้า SAP · Step 3 = คำนวณยอดสะสมข้ามเดือน · Step 4 = ปิดประตูงวด — ทุกขั้นมี guard กันทำซ้ำ (Agreement guard ใน SP, `JobIdProcessing`, ปุ่มล็อคตาม stamp)
 
 ---
 

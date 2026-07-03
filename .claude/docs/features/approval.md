@@ -96,17 +96,21 @@ FE page → useGetApprovalById(id, role)
 
 ### Net Freight (SUBSIDY) — chain ที่มา
 
+> เปลี่ยนโดย SAM-1762 / CR5.1 (`df88b048`, merge develop 2026-07-03) — รายละเอียด `web/web/wiki/raw/SAM-1762.md`
+
 ```
-ACCDW linked server view View_SAM_FreightSubsidy (สูตรอยู่นอก repo — freight จริงเฉลี่ย บาท/ตัน)
-→ sp_Sync_Subsidy (Sql/PamDB/Store-view/sp_Sync_warehouse.sql) MERGE เข้า warehouse.Subsidy
-   (key: PERIOD+ORGNO+PRODUCT_CODE, soft delete)
-→ ตอน save rebate: TOP 1 ORDER BY PERIOD DESC ต่อ (SaleOrg, Product) → ROUND เป็น int
+ACCDW linked server view View_SAM_FreightSubsidy_bySoldto (สูตรอยู่นอก repo)
+→ sp_Sync_Subsidy MERGE เข้า warehouse.Subsidy
+   (key: PERIOD+ORGNO+CUS_SOL_CODE+PRODUCT_CODE — composite PK, soft delete)
+→ ตอน save rebate: OUTER APPLY match ORGNO + CUS_SOL_CODE + PRODUCT_CODE + PERIOD
+   ของ proposal เป๊ะ (period = year*100+month) → ไม่ match = ISNULL → 0
    → stamp ลง ProposalProductTypeRS.SUBSIDY / ProposalProductTypeP.SUBSIDY
 ```
 
 - **Snapshot at save-time** — sync subsidy ใหม่หลัง save ไม่เปลี่ยนหน้า approval (จนกว่าจะ save detail ใหม่)
-- Lookup ไม่สน month/year ของ proposal — เอา PERIOD ล่าสุดเสมอ
-- ⚠️ migration `20260702023338` เพิ่ม `CUS_SOL_CODE` เข้า `Subsidy` แล้ว แต่ lookup ตอน stamp **ยังไม่ filter customer** — ถ้า master แตก grain รายลูกค้า `TOP 1` จะ non-deterministic
+- **Level 1 match เท่านั้น** — ไม่มี fallback ไป grain กว้าง (scope decision 2026-07-02); ไม่เจอ → 0, proposal save ได้ปกติ
+- Match ซ้ำ key เดียวกัน → `ApiBusinessException` "ข้อมูล Net Freight ไม่ถูกต้อง..." — pre-check ใน `CreateProposalDetailCommandHandler.NetFreightLookup.cs` (`EnsureNoDuplicateNetFreightAsync`; PK ทำให้ duplicate แทบเป็นไปไม่ได้ — guard เผื่อ PK ถูกผ่อน/raw insert)
+- Sold To ของ proposal = `ProposalCustomers.SOLDTO_CODE` ตัวแรก (distinct + order) — proposal หลาย sold-to ใช้ code แรกตัวเดียว
 
 ---
 
