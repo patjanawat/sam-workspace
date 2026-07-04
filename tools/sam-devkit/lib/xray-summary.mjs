@@ -54,7 +54,7 @@ export function buildBaseline(rows) {
 }
 
 // ReindexBaselinePages: union of page keys sorted ascending → contiguous 1..N
-function reindexPages(baseline, discountByPage) {
+export function reindexPages(baseline, discountByPage) {
   const pages = [...new Set([...Object.keys(baseline), ...Object.keys(discountByPage)].map(Number))].sort((a, b) => a - b);
   const remap = new Map(pages.map((p, i) => [p, i + 1]));
   const rb = Object.fromEntries(Object.entries(baseline).map(([p, v]) => [remap.get(Number(p)), v]));
@@ -97,7 +97,7 @@ const parseNum = (x) => {
 
 // Parse the stored multi-page wrapper; pages[].payload is a double-encoded
 // section array. Defaults mirror RebateHelpers.ApplyPageDefaults.
-function parsePages(payloadJson) {
+export function parsePages(payloadJson) {
   if (!payloadJson || typeof payloadJson !== 'string') return [];
   let root;
   try { root = JSON.parse(payloadJson); } catch { return []; }

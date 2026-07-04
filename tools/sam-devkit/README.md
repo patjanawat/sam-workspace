@@ -201,6 +201,13 @@ diff lights up.
 - Type P PM matches the previous proposal's row by the **same page number** —
   gapped pages miss and show 0.
 
+**P.M. Max screen** — the X-ray tile's third screen compares the
+`meta.pmLastStep` baseline STORED in the saved rebate payload against what the
+BE would inject today (`InjectPmMaxBaseline`: same reindexed page → its
+baseline; added page or missing counterpart → page-1 fallback). A `STALE` cell
+means the persisted baseline drifted from the recomputed one — the SAM-1810
+family of bugs, caught per (page, section, product).
+
 **Summary screen** — the X-ray tile's second screen replicates the **Request ›
 Summary footer** (Current / Latest Approved / Changed) plus a per-section
 breakdown showing exactly which section contributes what. It computes the two

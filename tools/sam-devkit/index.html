@@ -221,6 +221,7 @@
         <div class="seg-group" id="xrayScreenSeg" style="margin-bottom:14px;">
           <button type="button" class="seg-btn active" data-xscreen="overview">Approval › Overview</button>
           <button type="button" class="seg-btn" data-xscreen="summary">Request › Summary</button>
+          <button type="button" class="seg-btn" data-xscreen="pmmax">P.M. Max</button>
         </div>
         <div class="section-title">View as role</div>
         <div class="seg-group" id="xrayRoleSeg">
@@ -1115,6 +1116,44 @@
     };
   }
 
+
+  // ---------- x-ray: Rebate › P.M. Max (stored meta vs expected inject) ----------
+  function renderXrayPmMax(r) {
+    if (!r || !r.rows) return;
+    const rep = $('inspectReport');
+    const fmtV = (v) => (v === null ? '<span style="color:#b0b7c3;">—</span>' : Number(v).toLocaleString('en-US'));
+    const badge = r.summary.comparable
+      ? (r.summary.mismatches
+          ? '<span class="status-pill" style="background:rgba(248,81,73,.12); color:#b91c1c;">' + r.summary.mismatches + ' stale / ' + r.summary.cells + ' cells</span>'
+          : '<span class="status-pill" style="background:rgba(63,185,80,.12); color:#15803d;">all ' + r.summary.cells + ' cells match expected baseline</span>')
+      : '<span class="status-pill" style="background:rgba(210,153,34,.14); color:#a16207;">no PreviousId — stored meta shown, nothing to compare</span>';
+    const th = (t) => '<th style="font:600 10.5px \'IBM Plex Sans\'; letter-spacing:.03em; text-transform:uppercase; color:#98a2b3; text-align:left; padding:9px 10px; border-bottom:1px solid #e7e9ee; background:#fafbfc;">' + t + '</th>';
+    const td = (v, color, bold) => '<td style="font:400 12px \'IBM Plex Mono\',monospace; color:' + (color || '#475467') + '; padding:7px 10px; border-bottom:1px solid #eef0f3;' + (bold ? ' font-weight:600;' : '') + '">' + v + '</td>';
+
+    rep.innerHTML = '<div class="result-card" style="display:block;">'
+      + '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">'
+      + '<span class="section-title" style="margin:0;">Replica — Rebate › P.M. Max per page</span>'
+      + '<span style="font:700 14px \'IBM Plex Mono\',monospace;">' + escH(r.proposal.requestNo) + '</span>'
+      + '<span style="font:400 12px \'IBM Plex Mono\',monospace; color:#98a2b3;">v' + r.proposal.version + '</span>'
+      + '<div style="flex:1;"></div>' + badge + '</div>'
+      + '<div style="font:400 12px \'IBM Plex Sans\'; color:#98a2b3; margin-bottom:10px;">stored = meta.pmLastStep ในของที่ save ไว้ · expected = ค่าที่ BE inject วันนี้ (InjectPmMaxBaseline: reindex gapped pages · added page → page-1) — mismatch = baseline stale แบบตระกูล SAM-1810</div>'
+      + '<div class="devkit-scroll" style="overflow-x:auto; border:1px solid #eef0f3; border-radius:10px;">'
+      + '<table style="border-collapse:collapse; width:100%;">'
+      + '<tr>' + th('Page') + th('Section') + th('Product') + th('Stored') + th('Expected') + th('Status') + '</tr>'
+      + r.rows.map((x) => '<tr>'
+          + td(x.page + (x.addedPage ? ' <span style="font:600 9.5px \'IBM Plex Mono\',monospace; color:#0d5cb6; background:rgba(88,166,255,.13); padding:1px 6px; border-radius:4px;">ADDED→p1</span>' : ''))
+          + td(escH(x.section)) + td(escH(x.productId))
+          + td(fmtV(x.stored), x.match === false ? '#b91c1c' : undefined, x.match === false)
+          + td(fmtV(x.expected))
+          + td(x.match === null ? '<span style="color:#b0b7c3;">n/a</span>' : x.match ? '<span style="color:#15803d;">✓</span>' : '<span style="color:#b91c1c; font-weight:600;">STALE</span>')
+        + '</tr>').join('')
+      + '</table></div></div>';
+    rep.style.display = 'flex';
+    document.querySelector('.console-box').style.flex = '0 0 170px';
+    $('resultCard').style.display = 'none';
+    rep.scrollTop = 0;
+  }
+
   // ---------- x-ray: Request › Summary footer ----------
   state.xrayScreen = 'overview';
 
@@ -1311,7 +1350,9 @@
     } else if (state.action === 'xray') {
       body = state.xrayScreen === 'summary'
         ? { env: state.env, proposalId, module: 'xray-summary' }
-        : { env: state.env, proposalId, module: 'xray-overview', role: state.xrayRole, verify: state.xrayVerify };
+        : state.xrayScreen === 'pmmax'
+          ? { env: state.env, proposalId, module: 'xray-pmmax' }
+          : { env: state.env, proposalId, module: 'xray-overview', role: state.xrayRole, verify: state.xrayVerify };
       hideInspectReport();
     } else if (state.action === 'people') {
       body = { env: state.env, module: 'org-lookup', query: $('peopleQuery').value.trim() };
@@ -1366,6 +1407,7 @@
         const obj = JSON.parse(line.slice(7));
         if (state.action === 'inspect') renderInspectReport(obj);
         else if (state.action === 'xray' && state.xrayScreen === 'summary') renderXraySummary(obj);
+        else if (state.action === 'xray' && state.xrayScreen === 'pmmax') renderXrayPmMax(obj);
         else if (state.action === 'xray') renderXrayReport(obj);
         else if (state.action === 'people') renderPeopleReport(obj);
         else showResult(obj);
@@ -1399,10 +1441,11 @@
       Array.prototype.forEach.call(document.querySelectorAll('#xrayScreenSeg .seg-btn'), (x) => x.classList.remove('active'));
       b.classList.add('active');
       // role/verify only apply to the Overview screen
-      $('xrayRoleSeg').style.opacity = state.xrayScreen === 'summary' ? '.4' : '1';
-      $('xrayRoleSeg').style.pointerEvents = state.xrayScreen === 'summary' ? 'none' : 'auto';
-      $('xrayVerify').style.opacity = state.xrayScreen === 'summary' ? '.4' : '1';
-      $('xrayVerify').style.pointerEvents = state.xrayScreen === 'summary' ? 'none' : 'auto';
+      const plain = state.xrayScreen !== 'overview'; // role/verify only apply to Overview
+      $('xrayRoleSeg').style.opacity = plain ? '.4' : '1';
+      $('xrayRoleSeg').style.pointerEvents = plain ? 'none' : 'auto';
+      $('xrayVerify').style.opacity = plain ? '.4' : '1';
+      $('xrayVerify').style.pointerEvents = plain ? 'none' : 'auto';
     });
   });
   $('xrayVerify').onclick = () => {
