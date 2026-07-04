@@ -10,6 +10,7 @@ import { setProposalContract } from './lib/proposal-contract.mjs';
 import { searchProposals, cloneProposal } from './lib/clone-proposal.mjs';
 import { inspectProposal } from './lib/inspector.mjs';
 import { xrayOverview } from './lib/xray-overview.mjs';
+import { xraySummary } from './lib/xray-summary.mjs';
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
 
@@ -106,6 +107,17 @@ async function handleRun(req, res) {
     try {
       const db = loadDbConfig(cfg);
       const r = await inspectProposal({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'xray-summary') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await xraySummary({ db, proposalId: input.proposalId, log });
       res.write('RESULT ' + JSON.stringify(r) + '\n');
     } catch (e) {
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);

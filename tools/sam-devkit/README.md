@@ -201,6 +201,19 @@ diff lights up.
 - Type P PM matches the previous proposal's row by the **same page number** —
   gapped pages miss and show 0.
 
+**Summary screen** — the X-ray tile's second screen replicates the **Request ›
+Summary footer** (Current / Latest Approved / Changed) plus a per-section
+breakdown showing exactly which section contributes what. It computes the two
+grains independently, the classic confusion point:
+- *Current* = FE `accumulateMaxBySection` — per section, max(`new`) on that
+  section's last countable page (added pages included).
+- *Latest Approved* = BE baseline recomputed devkit-side from the previous
+  proposal's `ProposalProductTypeRS`: max(RATE) per (PAGE, product, RATE_TYPE)
+  → reindex gapped pages → last-page-per-section collapse (+ Discount as
+  `discountHeader`). Constant — editing the draft never moves it.
+- No `PreviousId` → Latest falls back to max(`old`) per section, added pages
+  excluded (SAM-1767 rule). The report labels which baseline path was used.
+
 ## Test
 ```bash
 node --test

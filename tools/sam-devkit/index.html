@@ -210,6 +210,11 @@
 
       <!-- X-ray controls -->
       <div id="xraySection" hidden>
+        <div class="section-title">Screen</div>
+        <div class="seg-group" id="xrayScreenSeg" style="margin-bottom:14px;">
+          <button type="button" class="seg-btn active" data-xscreen="overview">Approval › Overview</button>
+          <button type="button" class="seg-btn" data-xscreen="summary">Request › Summary</button>
+        </div>
         <div class="section-title">View as role</div>
         <div class="seg-group" id="xrayRoleSeg">
           <button type="button" class="seg-btn active" data-xrole="sam">SAM</button>
@@ -1019,6 +1024,61 @@
   }
 
 
+
+  // ---------- x-ray: Request › Summary footer ----------
+  state.xrayScreen = 'overview';
+
+  function renderXraySummary(r) {
+    if (!r || !r.footer) return;
+    const rep = $('inspectReport');
+    const f = r.footer;
+    const fmtN = (n) => Number(n).toLocaleString('en-US');
+    const pids = f.perProduct.map((p) => p.productId);
+    const chColor = (n) => (n < 0 ? '#b91c1c' : '#15803d');
+
+    const baselineBadge = f.baselineUsed === 'recomputed'
+      ? '<span class="status-pill" style="background:rgba(63,185,80,.12); color:#15803d;">Latest = baseline จาก previous (recomputed แบบ BE: reindex + collapse)</span>'
+      : '<span class="status-pill" style="background:rgba(210,153,34,.14); color:#a16207;">ไม่มี PreviousId — Latest = fallback max(old) ต่อ section (ไม่รวม added pages)</span>';
+
+    const th = (t, right) => '<th style="font:600 10.5px \'IBM Plex Sans\'; letter-spacing:.03em; text-transform:uppercase; color:#98a2b3; text-align:' + (right ? 'right' : 'left') + '; padding:9px 10px; border-bottom:1px solid #e7e9ee; background:#fafbfc; white-space:nowrap;">' + t + '</th>';
+    const td = (v, opts) => '<td style="font:400 12px \'IBM Plex Mono\',monospace; color:' + ((opts && opts.color) || '#475467') + '; text-align:' + ((opts && opts.left) ? 'left' : 'right') + '; padding:8px 10px; border-bottom:1px solid #eef0f3; white-space:nowrap;' + ((opts && opts.bold) ? ' font-weight:600;' : '') + '">' + v + '</td>';
+
+    let html = '<div class="result-card" style="display:block;">'
+      + '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">'
+      + '<span class="section-title" style="margin:0;">Replica — Request › Summary · footer "of Proposal"</span>'
+      + '<span style="font:700 14px \'IBM Plex Mono\',monospace;">' + escH(r.proposal.requestNo) + '</span>'
+      + '<span style="font:400 12px \'IBM Plex Mono\',monospace; color:#98a2b3;">v' + r.proposal.version + '</span>'
+      + '<div style="flex:1;"></div>' + baselineBadge + '</div>'
+      + '<div class="devkit-scroll" style="overflow-x:auto; border:1px solid #eef0f3; border-radius:10px;">'
+      + '<table style="border-collapse:collapse; width:100%;">'
+      + '<tr>' + th('Footer row') + pids.map((p) => th(escH(p), true)).join('') + '</tr>'
+      + '<tr>' + td('Current Discount & Rebate of Proposal', { left: true, bold: true }) + f.perProduct.map((p) => td(fmtN(p.current), { bold: true })).join('') + '</tr>'
+      + '<tr>' + td('Latest Approved Discount & Rebate', { left: true }) + f.perProduct.map((p) => td(fmtN(p.latest))).join('') + '</tr>'
+      + '<tr>' + td('Changed', { left: true }) + f.perProduct.map((p) => td(fmtN(p.changed), { bold: true, color: chColor(p.changed) })).join('') + '</tr>'
+      + '</table></div></div>';
+
+    // per-section breakdown
+    html += '<div class="result-card" style="display:block;">'
+      + '<div class="section-title">Per-section breakdown — ตัวบวกของ footer</div>'
+      + '<div class="devkit-scroll" style="overflow-x:auto; border:1px solid #eef0f3; border-radius:10px;">'
+      + '<table style="border-collapse:collapse; width:100%;">'
+      + '<tr>' + th('Section') + pids.map((p) => th(escH(p) + ' cur', true) + th(escH(p) + ' latest', true)).join('') + '</tr>'
+      + r.sections.map((s) => '<tr>' + td(escH(s.section), { left: true })
+          + s.products.map((p) => td(fmtN(p.current)) + td(fmtN(p.latest), { color: '#98a2b3' })).join('')
+        + '</tr>').join('')
+      + '</table></div>'
+      + '<div style="font:400 12px \'IBM Plex Sans\'; color:#667085; margin-top:10px; line-height:1.6;">'
+      + '<b>Current</b> ต่อ section = max(new) บน last page ที่มี countable row ของ section นั้น (per-section อิสระ, รวม added pages) — <span style="font-family:\'IBM Plex Mono\',monospace;">rebate-footer.mapper.tsx · accumulateMaxBySection</span><br>'
+      + '<b>Latest</b> ต่อ section = baseline ของ previous: max(RATE) ต่อ (PAGE, product, RATE_TYPE) → reindex gapped pages → last-page-per-section — <span style="font-family:\'IBM Plex Mono\',monospace;">GetProposalDetailByIdQueryHandler.BuildPmMaxBaselineAsync + RebateHelpers.ReindexBaselinePages + CollapseToLastPagePerSection</span><br>'
+      + '⚠ อย่าสับสนกับแถว <b>P.M. Max</b> ในหน้า Rebate — นั่นคือ grain per-page (meta.pmLastStep) คนละค่ากับ footer นี้ (ยอดรวมทั้ง proposal ก่อนหน้า)</div></div>';
+
+    rep.innerHTML = html;
+    rep.style.display = 'flex';
+    document.querySelector('.console-box').style.flex = '0 0 170px';
+    $('resultCard').style.display = 'none';
+    rep.scrollTop = 0;
+  }
+
   // ---------- x-ray report (Approval › Overview) ----------
   state.xrayRole = 'sam';
   state.xrayVerify = false;
@@ -1159,7 +1219,9 @@
       body = { env: state.env, proposalId, module: 'inspect' };
       hideInspectReport();
     } else if (state.action === 'xray') {
-      body = { env: state.env, proposalId, module: 'xray-overview', role: state.xrayRole, verify: state.xrayVerify };
+      body = state.xrayScreen === 'summary'
+        ? { env: state.env, proposalId, module: 'xray-summary' }
+        : { env: state.env, proposalId, module: 'xray-overview', role: state.xrayRole, verify: state.xrayVerify };
       hideInspectReport();
     } else {
       body = { env: state.env, proposalId, module: 'approve' };
@@ -1210,6 +1272,7 @@
       try {
         const obj = JSON.parse(line.slice(7));
         if (state.action === 'inspect') renderInspectReport(obj);
+        else if (state.action === 'xray' && state.xrayScreen === 'summary') renderXraySummary(obj);
         else if (state.action === 'xray') renderXrayReport(obj);
         else showResult(obj);
       } catch (e) { /* leave raw line visible */ }
@@ -1232,6 +1295,18 @@
       state.xrayRole = b.getAttribute('data-xrole');
       Array.prototype.forEach.call(document.querySelectorAll('#xrayRoleSeg .seg-btn'), (x) => x.classList.remove('active'));
       b.classList.add('active');
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#xrayScreenSeg .seg-btn'), (b) => {
+    b.addEventListener('click', () => {
+      state.xrayScreen = b.getAttribute('data-xscreen');
+      Array.prototype.forEach.call(document.querySelectorAll('#xrayScreenSeg .seg-btn'), (x) => x.classList.remove('active'));
+      b.classList.add('active');
+      // role/verify only apply to the Overview screen
+      $('xrayRoleSeg').style.opacity = state.xrayScreen === 'summary' ? '.4' : '1';
+      $('xrayRoleSeg').style.pointerEvents = state.xrayScreen === 'summary' ? 'none' : 'auto';
+      $('xrayVerify').style.opacity = state.xrayScreen === 'summary' ? '.4' : '1';
+      $('xrayVerify').style.pointerEvents = state.xrayScreen === 'summary' ? 'none' : 'auto';
     });
   });
   $('xrayVerify').onclick = () => {
