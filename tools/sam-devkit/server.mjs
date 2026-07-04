@@ -9,6 +9,7 @@ import { setSapState } from './lib/sap-fixup.mjs';
 import { setProposalContract } from './lib/proposal-contract.mjs';
 import { searchProposals, cloneProposal } from './lib/clone-proposal.mjs';
 import { inspectProposal } from './lib/inspector.mjs';
+import { xrayOverview } from './lib/xray-overview.mjs';
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
 
@@ -108,6 +109,29 @@ async function handleRun(req, res) {
       res.write('RESULT ' + JSON.stringify(r) + '\n');
     } catch (e) {
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'xray-overview') {
+    try {
+      const db = loadDbConfig(cfg);
+      let verifyFetch = null;
+      if (input.verify) {
+        assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
+        const client = createClient({ baseUrl: cfg.apiBaseUrl });
+        verifyFetch = async (track, id) => {
+          const acct = cfg.roles?.[track]; // sam-track → sam account; sdm-track → sdm account
+          if (!acct) throw new Error(`verify needs a "${track}" account in config.roles`);
+          const { token } = await client.login(acct);
+          return client.get(`/approval/${track}/${id}`, token);
+        };
+      }
+      const r = await xrayOverview({ db, proposalId: input.proposalId, role: input.role, verifyFetch, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
     }
     return res.end();
   }

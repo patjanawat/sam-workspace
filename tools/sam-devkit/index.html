@@ -208,6 +208,24 @@
         </div>
       </div>
 
+      <!-- X-ray controls -->
+      <div id="xraySection" hidden>
+        <div class="section-title">View as role</div>
+        <div class="seg-group" id="xrayRoleSeg">
+          <button type="button" class="seg-btn active" data-xrole="sam">SAM</button>
+          <button type="button" class="seg-btn" data-xrole="sdm">SDM · PTE · CDR</button>
+        </div>
+        <div style="font:400 13px 'IBM Plex Sans'; color:#98a2b3; margin-top:6px; line-height:1.4;">column set ต่างกันตาม role — SAM สั้น (rebate breakdown) / SDM ยาว (+EXW, UCM, Var-Cost…)</div>
+        <div style="margin-top:14px;">
+          <div class="section-title">Verify</div>
+          <button type="button" id="xrayVerify" class="chip-btn" style="width:100%; text-align:left; padding:10px 12px;">
+            <span id="xrayVerifyMark" style="font:600 13px 'IBM Plex Mono',monospace; color:#98a2b3;">☐</span>
+            <span style="font:600 13px 'IBM Plex Sans';"> Verify vs live API</span>
+            <span style="display:block; font:400 12px 'IBM Plex Sans'; color:#98a2b3; margin-top:2px;">recompute จาก DB แล้ว diff กับ GET /approval/sam|sdm/{id} — mismatch ขึ้นแดง (ต้องมี role account ใน config)</span>
+          </button>
+        </div>
+      </div>
+
       <div style="flex:1; min-height:4px;"></div>
 
       <!-- Run -->
@@ -299,6 +317,7 @@
     { key: 'sap-fixup', label: 'SAP fixup', desc: 'Set SAP status / contract no', glyph: '⟳' },
     { key: 'clone', label: 'Clone → Draft', desc: 'Copy proposal + details to a new Draft', glyph: '⧉' },
     { key: 'inspect', label: 'Inspector', desc: 'X-ray one proposal — read-only', glyph: '⌕' },
+    { key: 'xray', label: 'Overview X-ray', desc: 'Trace every approval-overview column', glyph: '⊞' },
   ];
   // Real backend contract: success / fail / '' (clear) / omitted (leave unchanged — sentinel)
   const SAP_OPTIONS = [
@@ -433,12 +452,14 @@
     const sap = state.action === 'sap-fixup';
     const clone = state.action === 'clone';
     const insp = state.action === 'inspect';
+    const xr = state.action === 'xray';
     $('sapSection').hidden = !sap;
     $('contractSection').hidden = !sap;
     $('proposalSection').hidden = clone;
     $('cloneSection').hidden = !clone;
-    if (!insp) hideInspectReport();
-    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : 'Run approve-through';
+    $('xraySection').hidden = !xr;
+    if (!insp && !xr) hideInspectReport();
+    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : 'Run approve-through';
     if (clone) syncCloneMode();
     syncRun();
   }
@@ -997,6 +1018,129 @@
     rep.scrollTop = 0;
   }
 
+
+  // ---------- x-ray report (Approval › Overview) ----------
+  state.xrayRole = 'sam';
+  state.xrayVerify = false;
+  state.xr = null;
+
+  function xrayKeyOf(d, type) {
+    return (type === 'P' ? ['ProductCode', 'ShipTo', 'No'] : ['ProductCode']).map((k) => String(d[k] ?? '')).join('|');
+  }
+  // per-column human breakdown from the numeric row
+  function xrayResultLine(colKey, row, type) {
+    if (!row) return '';
+    const f = (n) => Number(n).toLocaleString('en-US');
+    if (type === 'P') {
+      switch (colKey) {
+        case 'TotalDiscount': return 'max(RATE) in (product, shipTo, page) group = <b>' + f(row.rate) + '</b>';
+        case 'TotalDiscountPrevious': return row.pmRate === 0 ? 'previous page match not found or 0 → <b>0</b>' : 'previous same-page row → <b>' + f(row.pmRate) + '</b>';
+        case 'VSDiscountPrevious': return f(row.rate) + ' − ' + f(row.pmRate) + ' = <b>' + f(row.vsDiscount) + '</b>';
+        case 'PriceEXW': return f(row.priceList) + ' − ' + f(row.rate) + ' = <b>' + f(row.priceExw) + '</b>';
+        case 'UCMPrice': return f(row.priceExw) + ' + ' + f(row.subsidy) + ' = <b>' + f(row.ucmPrice) + '</b>';
+        case 'VarCost': return row.quirks && row.quirks.varCostDropped ? '<b>0</b> — BE with-previous path drops VAR_COST' : '<b>' + f(row.varCost) + '</b>';
+        case 'CommonMargin': return f(row.ucmPrice) + ' − ' + f(row.varCost) + ' = <b>' + f(row.commonMargin) + '</b>';
+        case 'TotalDiscountVSPriceList': return f(row.rate) + ' ÷ ' + f(row.priceList) + ' × 100 = <b>' + row.pctVsPriceList + '</b>';
+        default: return '';
+      }
+    }
+    const rk = { Discount: 'Discount', NormalRebate: 'NR1', SpecialRebate: 'SR1', FreightRebate: 'FR1', LoyaltyProgram: 'SR3', SpecialAdditional: 'SR2', Accumulate: 'AR1' }[colKey];
+    if (rk) return 'grain result → <b>' + f(row.rates[rk]) + '</b>';
+    switch (colKey) {
+      case 'TotalRebate': return 'Σ rebates = <b>' + f(row.totalRebate) + '</b>';
+      case 'TotalDiscountAndRebate': return f(row.rates.Discount) + ' + ' + f(row.totalRebate) + ' = <b>' + f(row.total) + '</b>';
+      case 'TotalDiscountAndRebatePrevious': return row.prev.found ? f(row.prev.rates.Discount) + ' + ' + f(row.prev.totalRebate) + ' = <b>' + f(row.prev.total) + '</b>' : 'no previous match → <b>0</b>';
+      case 'VSDiscountPrevious': return f(row.rates.Discount) + ' − ' + f(row.prev.rates.Discount) + ' = <b>' + f(row.vsDiscount) + '</b>';
+      case 'VSRebatePrevious': return f(row.totalRebate) + ' − ' + f(row.prev.totalRebate) + ' = <b>' + f(row.vsRebate) + '</b>';
+      case 'PriceEXW': return f(row.priceList) + ' − ' + f(row.total) + ' = <b>' + f(row.priceExw) + '</b>';
+      case 'UCMPrice': return f(row.priceExw) + ' + ' + f(row.subsidy) + ' = <b>' + f(row.ucmPrice) + '</b>';
+      case 'CommonMargin': return f(row.ucmPrice) + ' − ' + f(row.varCost) + ' = <b>' + f(row.commonMargin) + '</b>';
+      case 'TotalDiscountRebateVSPriceList': return f(row.total) + ' ÷ ' + f(row.priceList) + ' × 100 = <b>' + row.pctVsPriceList + '</b>';
+      case 'PriceList': return '<b>' + f(row.priceList) + '</b>';
+      case 'FreightSubsidy': return '<b>' + f(row.subsidy) + '</b>';
+      default: return '';
+    }
+  }
+
+  function renderXrayReport(r) {
+    if (!r || !r.columns) return;
+    state.xr = { data: r, selCol: null, selRowIdx: 0 };
+    const rep = $('inspectReport');
+    const mm = new Set(((r.verify && r.verify.mismatches) || []).map((m) => m.key + '§' + m.field));
+
+    let vBadge = '';
+    if (r.verify && !r.verify.error) {
+      const bad = r.verify.mismatches.length + r.verify.missingInApi.length + r.verify.missingInDevkit.length;
+      vBadge = bad
+        ? '<span class="status-pill" style="background:rgba(248,81,73,.12); color:#b91c1c;"><span class="dot" style="background:#b91c1c;"></span>' + r.verify.mismatches.length + ' mismatch · ' + r.verify.matched + ' match</span>'
+        : '<span class="status-pill" style="background:rgba(63,185,80,.12); color:#15803d;"><span class="dot" style="background:#15803d;"></span>all ' + r.verify.matched + ' cells match API</span>';
+    } else if (r.verify && r.verify.error) {
+      vBadge = '<span class="status-pill" style="background:rgba(210,153,34,.14); color:#a16207;">verify: ' + escH(r.verify.error) + '</span>';
+    }
+
+    const gc = GROUP_COLOR[{ P: 1, R: 2, S: 3 }[r.type]] || { fg: '#667085', bg: '#f1f3f5' };
+    let html = '<div class="result-card" style="display:block;">'
+      + '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">'
+      + '<span class="section-title" style="margin:0;">Replica — Approval › Overview</span>'
+      + '<span style="font:700 14px \'IBM Plex Mono\',monospace;">' + escH(r.proposal.requestNo) + '</span>'
+      + '<span style="font:400 12px \'IBM Plex Mono\',monospace; color:#98a2b3;">v' + r.proposal.version + '</span>'
+      + '<span style="font:600 11px \'IBM Plex Mono\',monospace; padding:2px 8px; border-radius:5px; color:' + gc.fg + '; background:' + gc.bg + ';">Type ' + r.type + '</span>'
+      + '<span style="font:600 11px \'IBM Plex Mono\',monospace; padding:2px 8px; border-radius:5px; color:#4338ca; background:rgba(129,140,248,.16);">view as ' + (r.track === 'sam' ? 'SAM' : 'SDM·PTE·CDR') + '</span>'
+      + '<div style="flex:1;"></div>' + vBadge + '</div>'
+      + '<div style="font:400 12px \'IBM Plex Sans\'; color:#98a2b3; margin-bottom:10px;">same columns as the real screen — click any cell to trace it · values devkit-recomputed from ' + (r.type === 'P' ? 'ProposalProductTypeP' : 'ProposalProductTypeRS') + '</div>'
+      + '<div class="devkit-scroll" style="overflow-x:auto; border:1px solid #eef0f3; border-radius:10px;">'
+      + '<table id="xrayTable" style="border-collapse:collapse; width:100%; min-width:720px;">'
+      + '<tr>' + r.columns.map((c) => '<th data-col="' + c.key + '" style="font:600 10.5px \'IBM Plex Sans\'; letter-spacing:.03em; text-transform:uppercase; color:#98a2b3; text-align:right; padding:9px 10px; border-bottom:1px solid #e7e9ee; background:#fafbfc; white-space:nowrap; cursor:pointer;">' + escH(c.label) + '</th>').join('') + '</tr>'
+      + r.dto.map((d, ri) => '<tr>' + r.columns.map((c) => {
+        const bad = mm.has(xrayKeyOf(d, r.type) + '§' + c.key);
+        const v = d[c.key] ?? '';
+        return '<td data-col="' + c.key + '" data-row="' + ri + '" style="font:400 12px \'IBM Plex Mono\',monospace; color:' + (bad ? '#b91c1c' : '#475467') + '; background:' + (bad ? 'rgba(248,81,73,.10)' : 'transparent') + '; text-align:right; padding:8px 10px; border-bottom:1px solid #eef0f3; white-space:nowrap; cursor:pointer;' + (bad ? ' font-weight:600;' : '') + '">' + escH(v) + (bad ? ' ≠' : '') + '</td>';
+      }).join('') + '</tr>').join('')
+      + '</table></div></div>'
+      + '<div class="result-card" style="display:block;" id="xrayProv"><div style="font:400 13px \'IBM Plex Sans\'; color:#98a2b3;">click a column to trace: source → grain → formula → result</div></div>';
+
+    rep.innerHTML = html;
+    rep.style.display = 'flex';
+    document.querySelector('.console-box').style.flex = '0 0 170px';
+    $('resultCard').style.display = 'none';
+    rep.scrollTop = 0;
+
+    Array.prototype.forEach.call(rep.querySelectorAll('#xrayTable th, #xrayTable td'), (el) => {
+      el.addEventListener('click', () => {
+        state.xr.selCol = el.getAttribute('data-col');
+        if (el.hasAttribute('data-row')) state.xr.selRowIdx = Number(el.getAttribute('data-row'));
+        renderXrayProv();
+      });
+    });
+  }
+
+  function renderXrayProv() {
+    const s = state.xr;
+    if (!s || !s.selCol) return;
+    const r = s.data;
+    const col = r.columns.find((c) => c.key === s.selCol);
+    const row = r.rows[s.selRowIdx];
+    const dtoRow = r.dto[s.selRowIdx];
+    const mmList = ((r.verify && r.verify.mismatches) || []).filter((m) => m.field === col.key && m.key === xrayKeyOf(dtoRow, r.type));
+    const line = (l, v) => '<div style="display:grid; grid-template-columns:110px 1fr; gap:8px 14px; padding:8px 0; border-bottom:1px solid #eef0f3; align-items:baseline;">'
+      + '<span style="font:600 10.5px \'IBM Plex Sans\'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">' + l + '</span>'
+      + '<span style="font:400 12.5px \'IBM Plex Mono\',monospace; color:#1a1d23; line-height:1.6; word-break:break-word;">' + v + '</span></div>';
+    $('xrayProv').innerHTML =
+      '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">'
+      + '<span class="section-title" style="margin:0;">Column trace</span>'
+      + '<span style="font:700 14px \'IBM Plex Sans\';">' + escH(col.label) + '</span>'
+      + '<code style="font:400 12px \'IBM Plex Mono\',monospace; background:#f1f3f5; padding:2px 8px; border-radius:6px; border:1px solid #e7e9ee;">' + escH(dtoRow.ProductCode) + (dtoRow.ShipTo ? ' · ' + escH(dtoRow.ShipTo) : '') + '</code>'
+      + (mmList.length ? '<span class="status-pill" style="background:rgba(248,81,73,.12); color:#b91c1c;">devkit ≠ API</span>' : '')
+      + '</div>'
+      + line('Source', escH(col.source))
+      + line('Grain / filter', escH(col.grain))
+      + line('Formula', escH(col.formula))
+      + line('Result', xrayResultLine(col.key, row, r.type) || '<b>' + escH(dtoRow[col.key] ?? '') + '</b>')
+      + line('Code anchor', '<span style="color:#667085;">' + escH(col.anchor) + ' · สูตรซ้ำ 2 ชั้น Sam/ กับ Sdm/ — แก้ที่เดียวอีกที่ไม่แก้ = drift</span>')
+      + (col.warn ? '<div style="font:400 12px \'IBM Plex Sans\'; color:#a16207; background:rgba(210,153,34,.10); border:1px solid rgba(210,153,34,.25); border-radius:8px; padding:8px 11px; margin-top:10px; line-height:1.5;">⚠ ' + escH(col.warn) + '</div>' : '')
+      + (mmList.length ? '<div style="font:400 12px \'IBM Plex Mono\',monospace; color:#b91c1c; background:rgba(248,81,73,.08); border:1px solid rgba(248,81,73,.28); border-radius:8px; padding:9px 12px; margin-top:10px; line-height:1.6;">devkit recompute = <b>' + escH(mmList[0].devkit) + '</b> · API returns = <b>' + escH(mmList[0].api) + '</b></div>' : '');
+  }
+
   // ---------- run ----------
   async function run() {
     if (!canRun()) return;
@@ -1013,6 +1157,9 @@
       if (cn) body.contractNo = cn;
     } else if (state.action === 'inspect') {
       body = { env: state.env, proposalId, module: 'inspect' };
+      hideInspectReport();
+    } else if (state.action === 'xray') {
+      body = { env: state.env, proposalId, module: 'xray-overview', role: state.xrayRole, verify: state.xrayVerify };
       hideInspectReport();
     } else {
       body = { env: state.env, proposalId, module: 'approve' };
@@ -1063,6 +1210,7 @@
       try {
         const obj = JSON.parse(line.slice(7));
         if (state.action === 'inspect') renderInspectReport(obj);
+        else if (state.action === 'xray') renderXrayReport(obj);
         else showResult(obj);
       } catch (e) { /* leave raw line visible */ }
     }
@@ -1079,6 +1227,18 @@
   $('copyConsole').onclick = () => copyText(state.rawLog.join('\n'), $('copyConsole'));
   $('clearConsole').onclick = clearConsole;
   $('runBtn').onclick = run;
+  Array.prototype.forEach.call(document.querySelectorAll('#xrayRoleSeg .seg-btn'), (b) => {
+    b.addEventListener('click', () => {
+      state.xrayRole = b.getAttribute('data-xrole');
+      Array.prototype.forEach.call(document.querySelectorAll('#xrayRoleSeg .seg-btn'), (x) => x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+  $('xrayVerify').onclick = () => {
+    state.xrayVerify = !state.xrayVerify;
+    $('xrayVerifyMark').textContent = state.xrayVerify ? '☑' : '☐';
+    $('xrayVerifyMark').style.color = state.xrayVerify ? 'var(--accent)' : '#98a2b3';
+  };
 
   // ---------- init ----------
   loadRecent();

@@ -175,6 +175,32 @@ Paste a proposal id (or pick one from the recent list) and run — everything is
 - Requires the `db` block in `config.json` (same as SAP fixup); no role accounts needed.
 - Writes nothing. To fix what it finds, use SAP fixup / Clone / SQL by hand.
 
+## Overview X-ray (direct DB — read-only)
+
+Recomputes the **Approval › Overview** table (the per-product discount/rebate
+"รายละเอียด / Details" grid at `/approval/{id}`) from raw DB rows, and shows for
+every column: **source → grain/filter → formula → the actual arithmetic** for
+the clicked row. Column sets follow the real screen: **SAM** = short set with
+the rebate breakdown; **SDM · PTE · CDR** = long set (+Price EXW, UCM,
+Var-Cost, Comm. Margin, % vs Price List). Type R / S / P grains are all
+implemented, mirrored from `Features/Approval/{Sam,Sdm}/GetById/OverviewDetailType{R,S,P}.cs`.
+
+**Verify mode** — devkit logs in with the `sam` / `sdm` account from
+`config.json`, calls the real `GET /approval/sam|sdm/{id}`, and diffs its own
+numbers against the API cell by cell. Mismatched cells turn red with both
+values. This doubles as a drift detector: the BE formulas exist twice
+(`Sam/` vs `Sdm/`) and devkit is a third copy — when any of them drifts, the
+diff lights up.
+
+**Known BE quirks it surfaces** (verified from code, 2026-07-04)
+- Type R excludes `SR2/AR1` from the rebate sum; Type S includes them.
+- "Net Freight" column is really `SUBSIDY` (freight subsidy snapshot at save-time).
+- `PRICE_LIST`/`SUBSIDY`/`VAR_COST` come from `g.First()` without an ORDER BY.
+- Type P with-previous path never selects `VAR_COST` → Var-Cost shows 0 and
+  Comm. Margin is computed with 0 whenever the proposal has a previous version.
+- Type P PM matches the previous proposal's row by the **same page number** —
+  gapped pages miss and show 0.
+
 ## Test
 ```bash
 node --test
