@@ -1,0 +1,153 @@
+{
+  "generatedAt": "2026-07-04T15:56:04.000Z",
+  "sourceCommit": "321ebc7a",
+  "permissions": {
+    "srp": [
+      "/request",
+      "/request/*",
+      "/customers/*",
+      "/approval/*",
+      "/report",
+      "/report/*"
+    ],
+    "sam": [
+      "/request",
+      "/request/*",
+      "/approval",
+      "/approval/*",
+      "/customers/*",
+      "/report",
+      "/report/*"
+    ],
+    "sdm": [
+      "/approval",
+      "/approval/*",
+      "/report",
+      "/report/*"
+    ],
+    "pte": [
+      "/approval",
+      "/approval/*",
+      "/report",
+      "/report/*",
+      "/sap-sync",
+      "/sap-sync/*"
+    ],
+    "cdr": [
+      "/approval",
+      "/approval/*",
+      "/report",
+      "/report/*"
+    ],
+    "sla": [
+      "/customers/*",
+      "/settings/approval",
+      "/report",
+      "/report/*"
+    ],
+    "adm": [
+      "/request",
+      "/approval",
+      "/approval/*",
+      "/approval/asm/r",
+      "/approval/sdm/r",
+      "/rebates",
+      "/rebates/*",
+      "/report",
+      "/report/*",
+      "/customers/*",
+      "/settings/*",
+      "/upload/*",
+      "/sap-sync",
+      "/sap-sync/*"
+    ],
+    "adt": [
+      "/request",
+      "/approval",
+      "/approval/*",
+      "/rebates",
+      "/rebates/*",
+      "/report",
+      "/report/*",
+      "/customers/*",
+      "/settings/*"
+    ],
+    "fin": [
+      "/request",
+      "/approval",
+      "/approval/*",
+      "/rebates",
+      "/rebates/*",
+      "/report",
+      "/report/*"
+    ]
+  },
+  "redirects": {
+    "srp": "/request",
+    "sam": "/approval",
+    "sdm": "/approval",
+    "pte": "/approval",
+    "cdr": "/approval",
+    "sla": "/customers/groups",
+    "adm": "/settings/users",
+    "adt": "/request",
+    "fin": "/request"
+  },
+  "policies": {
+    "SystemAdminOnly": [
+      "System Admin"
+    ],
+    "SystemAdminOrSaleAdmin": [
+      "System Admin",
+      "Sales Admin"
+    ],
+    "CreateCustomerGroup": [
+      "Sales Representative",
+      "Area Sales Manager",
+      "System Admin",
+      "Sales Admin"
+    ],
+    "CreateProposal": [
+      "Sales Representative",
+      "Area Sales Manager"
+    ],
+    "ApprovalSetting": [
+      "System Admin",
+      "Sales Admin",
+      "Auditor"
+    ],
+    "ApproveRejectProposal": [
+      "Area Sales Manager",
+      "Sales Division Manager",
+      "Pricing Team",
+      "Commercial Director"
+    ],
+    "SaleAreaManager": [
+      "Area Sales Manager",
+      "System Admin",
+      "Finance",
+      "Auditor"
+    ],
+    "SaleAreaManagerAndAbove": [
+      "Area Sales Manager",
+      "Sales Division Manager",
+      "Pricing Team",
+      "Commercial Director",
+      "System Admin",
+      "Finance",
+      "Auditor"
+    ],
+    "SaleDivisionAndAbove": [
+      "Sales Division Manager",
+      "Pricing Team",
+      "Commercial Director",
+      "System Admin",
+      "Finance",
+      "Auditor"
+    ],
+    "SapReSync": [
+      "Pricing Team",
+      "System Admin"
+    ]
+  }
+}

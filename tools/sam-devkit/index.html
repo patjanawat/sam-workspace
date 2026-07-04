@@ -208,6 +208,13 @@
         </div>
       </div>
 
+      <!-- People controls -->
+      <div id="peopleSection" hidden>
+        <div class="section-title">Who</div>
+        <input type="text" id="peopleQuery" class="text-input" placeholder="email or name… e.g. anucha" spellcheck="false">
+        <div style="font:400 13px 'IBM Plex Sans'; color:#98a2b3; margin-top:6px; line-height:1.4;">email เป๊ะ, email บางส่วน, หรือชื่อบางส่วนก็ได้ — เจอคนแรกที่ match</div>
+      </div>
+
       <!-- X-ray controls -->
       <div id="xraySection" hidden>
         <div class="section-title">Screen</div>
@@ -323,6 +330,7 @@
     { key: 'clone', label: 'Clone → Draft', desc: 'Copy proposal + details to a new Draft', glyph: '⧉' },
     { key: 'inspect', label: 'Inspector', desc: 'X-ray one proposal — read-only', glyph: '⌕' },
     { key: 'xray', label: 'Overview X-ray', desc: 'Trace every approval-overview column', glyph: '⊞' },
+    { key: 'people', label: 'People', desc: 'Org chart, delegates, lockout, permissions', glyph: '⚇' },
   ];
   // Real backend contract: success / fail / '' (clear) / omitted (leave unchanged — sentinel)
   const SAP_OPTIONS = [
@@ -458,13 +466,15 @@
     const clone = state.action === 'clone';
     const insp = state.action === 'inspect';
     const xr = state.action === 'xray';
+    const ppl = state.action === 'people';
     $('sapSection').hidden = !sap;
     $('contractSection').hidden = !sap;
-    $('proposalSection').hidden = clone;
+    $('proposalSection').hidden = clone || ppl;
     $('cloneSection').hidden = !clone;
     $('xraySection').hidden = !xr;
-    if (!insp && !xr) hideInspectReport();
-    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : 'Run approve-through';
+    $('peopleSection').hidden = !ppl;
+    if (!insp && !xr && !ppl) hideInspectReport();
+    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : ppl ? 'Run people lookup' : 'Run approve-through';
     if (clone) syncCloneMode();
     syncRun();
   }
@@ -695,6 +705,7 @@
   function canRun() {
     if (state.running) return false;
     if (state.action === 'clone') return !!state.cloneSource;
+    if (state.action === 'people') return $('peopleQuery').value.trim().length >= 2;
     if (!guidValid($('proposalId').value)) return false;
     if (state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim()) return false;
     return true;
@@ -1025,6 +1036,85 @@
 
 
 
+
+  // ---------- people & permissions ----------
+  function renderPeopleReport(r) {
+    if (!r || !r.user) return;
+    const rep = $('inspectReport');
+    const u = r.user;
+    const badge = (t, fg, bg) => '<span class="status-pill" style="background:' + bg + '; color:' + fg + ';">' + t + '</span>';
+    const mono = (t) => '<span style="font-family:\'IBM Plex Mono\',monospace;">' + escH(t) + '</span>';
+
+    let html = '<div class="result-card" style="display:block;">'
+      + '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px;">'
+      + '<span style="font:700 16px \'IBM Plex Sans\';">' + escH(u.name) + '</span>'
+      + '<span style="font:400 12.5px \'IBM Plex Mono\',monospace; color:#98a2b3;">' + escH(u.email) + '</span>'
+      + badge(escH(u.roleCode), '#4338ca', 'rgba(129,140,248,.16)')
+      + (u.isActive ? '' : badge('inactive', '#b91c1c', 'rgba(248,81,73,.12)'))
+      + (u.isLock ? badge('LOCKED until ' + escH((u.lockoutEnd || '').slice(0, 16)), '#b91c1c', 'rgba(248,81,73,.12)')
+                   + ' <button type="button" class="chip-btn" id="unlockBtn" data-uid="' + u.id + '">unlock</button>' : '')
+      + '<div style="flex:1;"></div>'
+      + '<span style="font:400 11.5px \'IBM Plex Mono\',monospace; color:#b0b7c3;">office ' + escH(u.saleOfficeCode || '—') + ' ' + escH(u.saleOfficeName || '') + ' · group ' + escH(u.saleGroupCode || '—') + '</span>'
+      + '</div>'
+      + '<div style="display:flex; gap:24px; flex-wrap:wrap;">'
+      + '<div style="min-width:260px;"><div class="section-title">Manager chain ↑</div>'
+      + r.managerChain.map(function (m, i) {
+          var isSelf = i === 0;
+          var del = (r.delegatesActive || []).find(function (d) { return d.userId === m.id; });
+          return '<div style="padding:6px 0 6px ' + (i * 16) + 'px; font:400 12.5px \'IBM Plex Sans\';">'
+            + (isSelf ? '<b>' : '') + escH(m.name) + (isSelf ? '</b>' : '')
+            + ' <span style="color:#98a2b3;">(' + escH(m.roleCode) + ')</span>'
+            + (del ? ' <span style="font:600 10.5px \'IBM Plex Mono\',monospace; color:#0d5cb6; background:rgba(88,166,255,.13); padding:1px 7px; border-radius:5px;">delegating → ' + escH(del.delegateToName) + ' (' + del.fromDate + ' → ' + del.toDate + ')</span>' : '')
+            + '</div>';
+        }).join('')
+      + '</div>'
+      + '<div style="min-width:260px;"><div class="section-title">Direct reports ↓ (' + r.reports.direct.length + ' · indirect ' + r.reports.indirectCount + ')</div>'
+      + (r.reports.direct.length
+          ? r.reports.direct.map(function (m) { return '<div style="padding:5px 0; font:400 12.5px \'IBM Plex Sans\';">' + escH(m.name) + ' <span style="color:#98a2b3;">(' + escH(m.roleCode) + ')</span>' + (m.isLock ? ' <span style="color:#b91c1c;">🔒</span>' : '') + '</div>'; }).join('')
+          : '<div style="font:400 12px \'IBM Plex Sans\'; color:#b0b7c3;">none</div>')
+      + ((r.delegatedToUser || []).length
+          ? '<div class="section-title" style="margin-top:12px;">Receiving delegate</div>'
+            + r.delegatedToUser.map(function (d) { return '<div style="font:400 12px \'IBM Plex Sans\';">from ' + mono(d.userId.slice(0, 8) + '…') + ' (' + d.fromDate + ' → ' + d.toDate + ')</div>'; }).join('')
+          : '')
+      + '</div></div></div>';
+
+    // permission matrix
+    const m = r.matrix || { menus: [], policies: [] };
+    html += '<div class="result-card" style="display:block;">'
+      + '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">'
+      + '<span class="section-title" style="margin:0;">Permissions — ' + escH(m.roleName || u.roleCode) + '</span>'
+      + '<div style="flex:1;"></div>'
+      + '<span style="font:400 10.5px \'IBM Plex Mono\',monospace; color:#b0b7c3;">snapshot ' + escH((r.snapshotMeta || {}).sourceCommit || '?') + ' — regen: node scripts/gen-permissions.mjs</span></div>'
+      + '<div style="display:flex; gap:24px; flex-wrap:wrap;">'
+      + '<div style="min-width:240px;"><div class="section-title">Menus (FE middleware)</div>'
+      + '<div style="font:400 12px \'IBM Plex Mono\',monospace; line-height:1.9;">'
+      + (m.menus.length ? m.menus.map(escH).join('<br>') : '—')
+      + (m.landing ? '<br><span style="color:#98a2b3;">landing → ' + escH(m.landing) + '</span>' : '') + '</div></div>'
+      + '<div style="flex:1; min-width:320px;"><div class="section-title">BE policies (Program.cs)</div>'
+      + (m.policies || []).map(function (p) {
+          return '<div style="display:flex; gap:9px; align-items:baseline; padding:4px 0; border-bottom:1px solid #eef0f3;">'
+            + '<span style="font:600 12px \'IBM Plex Mono\',monospace; color:' + (p.allowed ? '#15803d' : '#b0b7c3') + '; width:14px;">' + (p.allowed ? '✓' : '✕') + '</span>'
+            + '<span style="font:500 12px \'IBM Plex Mono\',monospace; color:' + (p.allowed ? '#1a1d23' : '#98a2b3') + ';">' + escH(p.name) + '</span>'
+            + '<span style="flex:1;"></span><span style="font:400 10.5px \'IBM Plex Sans\'; color:#b0b7c3; text-align:right;">' + p.roles.map(escH).join(', ') + '</span></div>';
+        }).join('')
+      + '</div></div></div>';
+
+    rep.innerHTML = html;
+    rep.style.display = 'flex';
+    document.querySelector('.console-box').style.flex = '0 0 170px';
+    $('resultCard').style.display = 'none';
+    rep.scrollTop = 0;
+
+    const ub = document.getElementById('unlockBtn');
+    if (ub) ub.onclick = async () => {
+      if (!window.confirm('Unlock ' + u.email + '? (writes LockoutEnd=NULL, AccessFailedCount=0)')) return;
+      const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: state.env, module: 'org-unlock', userId: u.id }) });
+      const text = await res.text();
+      appendLine(text.trim());
+      run(); // re-run the lookup to refresh lock state
+    };
+  }
+
   // ---------- x-ray: Request › Summary footer ----------
   state.xrayScreen = 'overview';
 
@@ -1223,6 +1313,9 @@
         ? { env: state.env, proposalId, module: 'xray-summary' }
         : { env: state.env, proposalId, module: 'xray-overview', role: state.xrayRole, verify: state.xrayVerify };
       hideInspectReport();
+    } else if (state.action === 'people') {
+      body = { env: state.env, module: 'org-lookup', query: $('peopleQuery').value.trim() };
+      hideInspectReport();
     } else {
       body = { env: state.env, proposalId, module: 'approve' };
     }
@@ -1274,6 +1367,7 @@
         if (state.action === 'inspect') renderInspectReport(obj);
         else if (state.action === 'xray' && state.xrayScreen === 'summary') renderXraySummary(obj);
         else if (state.action === 'xray') renderXrayReport(obj);
+        else if (state.action === 'people') renderPeopleReport(obj);
         else showResult(obj);
       } catch (e) { /* leave raw line visible */ }
     }
@@ -1290,6 +1384,8 @@
   $('copyConsole').onclick = () => copyText(state.rawLog.join('\n'), $('copyConsole'));
   $('clearConsole').onclick = clearConsole;
   $('runBtn').onclick = run;
+  $('peopleQuery').addEventListener('input', syncRun);
+  $('peopleQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter' && canRun()) run(); });
   Array.prototype.forEach.call(document.querySelectorAll('#xrayRoleSeg .seg-btn'), (b) => {
     b.addEventListener('click', () => {
       state.xrayRole = b.getAttribute('data-xrole');

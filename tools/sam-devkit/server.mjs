@@ -11,6 +11,8 @@ import { searchProposals, cloneProposal } from './lib/clone-proposal.mjs';
 import { inspectProposal } from './lib/inspector.mjs';
 import { xrayOverview } from './lib/xray-overview.mjs';
 import { xraySummary } from './lib/xray-summary.mjs';
+import { orgLookup, unlockUser, permissionMatrix } from './lib/org-lookup.mjs';
+import permissionsSnapshot from './lib/permissions-snapshot.json' with { type: 'json' };
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
 
@@ -107,6 +109,30 @@ async function handleRun(req, res) {
     try {
       const db = loadDbConfig(cfg);
       const r = await inspectProposal({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'org-lookup') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await orgLookup({ db, query: input.query, log });
+      r.matrix = permissionMatrix({ roleCode: r.user.roleCode, snapshot: permissionsSnapshot });
+      r.snapshotMeta = { generatedAt: permissionsSnapshot.generatedAt, sourceCommit: permissionsSnapshot.sourceCommit };
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'org-unlock') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await unlockUser({ db, userId: input.userId, log });
       res.write('RESULT ' + JSON.stringify(r) + '\n');
     } catch (e) {
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);

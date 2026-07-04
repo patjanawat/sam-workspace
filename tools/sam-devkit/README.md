@@ -214,6 +214,31 @@ grains independently, the classic confusion point:
 - No `PreviousId` → Latest falls back to max(`old`) per section, added pages
   excluded (SAM-1767 rule). The report labels which baseline path was used.
 
+## People & Permissions (direct DB — read-only + one opt-in write)
+
+Type an email (exact or partial) or part of a name → one card answers the
+recurring "ปุ่มหาย / มองไม่เห็น / login ไม่ได้" class of tickets:
+
+- **Org** — manager chain up (`ReportToId`, recursive), direct reports down
+  (+indirect count), sale office/group.
+- **Delegates today** (Thai timezone) — anyone on the chain actively delegating
+  shows a `delegating → X (from → to)` badge; delegations *received* by the user
+  are listed too.
+- **Lockout** — locked accounts show `LOCKED until …` with an **unlock** button —
+  the module's only write (`LockoutEnd = NULL, AccessFailedCount = 0`), behind a
+  confirm dialog. Dev accounts lock constantly (lockout-on-failure policy).
+- **Permission matrix** — which FE menus the role can reach
+  (`ROLE_PERMISSIONS` + landing page) and which BE policies pass
+  (`Program.cs AddPolicy` → role list, ✓/✕ per policy).
+
+The matrix reads `lib/permissions-snapshot.json`, generated from the real
+sources (`permissions.ts` + `Program.cs`) and stamped with the source commit.
+When `web/` permission code changes, regenerate:
+
+```bash
+npm run gen-permissions
+```
+
 ## Test
 ```bash
 node --test
