@@ -246,6 +246,27 @@ When `web/` permission code changes, regenerate:
 npm run gen-permissions
 ```
 
+## SAP Sync Inspector (direct DB — read-only)
+
+Compares main DB `Proposal.SAPStatus` against the SAP staging table for the
+proposal's period, decoding the flow-specific success indicator so you don't
+have to remember it: **Create Discount (Type R) → `"0"`**, **Create Contract
+(Type P) → `"C"`**, **Change Contract (Type S) → `"S"`** — never the same
+value twice. Read-only companion to **SAP fixup**, which writes.
+
+**What it flags**
+- `main=success` but no staging row for the period → sync never landed, or
+  wrong period.
+- `main=success` but staging `SAP_RETURN` doesn't decode to that flow's
+  success value → main/staging disagree.
+- Synced successfully (Type P/S) but no contract number written to staging.
+- `main` empty with an existing staging row → possibly stuck mid-update.
+- `main=fail` matching a failed staging row is reported **ok** — that's the
+  expected state, not a mismatch.
+
+Staging rows list `DOCNO`, raw `SAP_RETURN`, decoded success, contract number,
+`SAP_MESSAGE`, and `PROCESSED_AT`.
+
 ## Test
 ```bash
 node --test

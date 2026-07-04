@@ -332,6 +332,7 @@
     { key: 'inspect', label: 'Inspector', desc: 'X-ray one proposal — read-only', glyph: '⌕' },
     { key: 'xray', label: 'Overview X-ray', desc: 'Trace every approval-overview column', glyph: '⊞' },
     { key: 'people', label: 'People', desc: 'Org chart, delegates, lockout, permissions', glyph: '⚇' },
+    { key: 'sap-inspect', label: 'SAP Sync Inspector', desc: 'Compare main DB vs SAP staging', glyph: '⇄' },
   ];
   // Real backend contract: success / fail / '' (clear) / omitted (leave unchanged — sentinel)
   const SAP_OPTIONS = [
@@ -468,14 +469,15 @@
     const insp = state.action === 'inspect';
     const xr = state.action === 'xray';
     const ppl = state.action === 'people';
+    const sapx = state.action === 'sap-inspect';
     $('sapSection').hidden = !sap;
     $('contractSection').hidden = !sap;
     $('proposalSection').hidden = clone || ppl;
     $('cloneSection').hidden = !clone;
     $('xraySection').hidden = !xr;
     $('peopleSection').hidden = !ppl;
-    if (!insp && !xr && !ppl) hideInspectReport();
-    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : ppl ? 'Run people lookup' : 'Run approve-through';
+    if (!insp && !xr && !ppl && !sapx) hideInspectReport();
+    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : ppl ? 'Run people lookup' : sapx ? 'Run SAP inspect' : 'Run approve-through';
     if (clone) syncCloneMode();
     syncRun();
   }
@@ -707,6 +709,7 @@
     if (state.running) return false;
     if (state.action === 'clone') return !!state.cloneSource;
     if (state.action === 'people') return $('peopleQuery').value.trim().length >= 2;
+    if (state.action === 'sap-inspect') return guidValid($('proposalId').value);
     if (!guidValid($('proposalId').value)) return false;
     if (state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim()) return false;
     return true;
@@ -1038,6 +1041,58 @@
 
 
 
+
+  // ---------- SAP Sync Inspector ----------
+  const SAP_LEVEL_STYLE = {
+    ok: { fg: '#15803d', bg: 'rgba(63,185,80,.12)', ic: '✓' },
+    warn: { fg: '#a16207', bg: 'rgba(210,153,34,.14)', ic: '!' },
+    err: { fg: '#b91c1c', bg: 'rgba(248,81,73,.12)', ic: '✕' },
+  };
+  function renderSapInspectReport(r) {
+    if (!r || !r.comparison) return;
+    const rep = $('inspectReport');
+    const st = SAP_LEVEL_STYLE[r.comparison.level] || SAP_LEVEL_STYLE.warn;
+    const th = (t) => '<th style="font:600 10.5px \'IBM Plex Sans\'; letter-spacing:.03em; text-transform:uppercase; color:#98a2b3; text-align:left; padding:9px 10px; border-bottom:1px solid #e7e9ee; background:#fafbfc;">' + t + '</th>';
+    const td = (v) => '<td style="font:400 12px \'IBM Plex Mono\',monospace; color:#475467; padding:7px 10px; border-bottom:1px solid #eef0f3;">' + v + '</td>';
+
+    let html = '<div class="result-card" style="display:block;">'
+      + '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">'
+      + '<span class="section-title" style="margin:0;">SAP Sync Inspector</span>'
+      + '<span style="font:700 14px \'IBM Plex Mono\',monospace;">' + escH(r.proposal.requestNo) + '</span>'
+      + '<span style="font:400 12px \'IBM Plex Mono\',monospace; color:#98a2b3;">v' + r.proposal.version + '</span>'
+      + '<span class="tb ' + r.type + '" style="padding:2px 9px; border-radius:5px; font:600 11px \'IBM Plex Mono\',monospace;">Type ' + r.type + ' → ' + r.flow + '</span>'
+      + '<div style="flex:1;"></div>'
+      + '<span class="status-pill" style="background:' + st.bg + '; color:' + st.fg + ';"><span class="dot" style="background:' + st.fg + ';"></span>' + r.comparison.level.toUpperCase() + '</span></div>'
+      + '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px 18px; margin-bottom:12px;">'
+      + '<div><div style="font:500 10px \'IBM Plex Sans\'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Main DB — Proposal.SAPStatus</div><div style="font:400 13px \'IBM Plex Mono\',monospace;">' + (r.proposal.sapStatus ? escH(r.proposal.sapStatus) : '<span style="color:#b0b7c3;">— none</span>') + '</div></div>'
+      + '<div><div style="font:500 10px \'IBM Plex Sans\'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Period</div><div style="font:400 13px \'IBM Plex Mono\',monospace;">' + r.proposal.period + '</div></div>'
+      + '<div><div style="font:500 10px \'IBM Plex Sans\'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Staging table</div><div style="font:400 13px \'IBM Plex Mono\',monospace;">' + escH(r.table) + '</div></div>'
+      + '</div>'
+      + '<div style="font:400 12.5px \'IBM Plex Sans\'; color:' + st.fg + '; background:' + st.bg + '; border-radius:8px; padding:9px 12px; line-height:1.5;">' + escH(r.comparison.detail) + '</div>'
+      + '</div>';
+
+    html += '<div class="result-card" style="display:block;">'
+      + '<div class="section-title">Staging rows — ' + escH(r.table) + '.SAP_RETURN (success = \'' + { CreateDiscount: '0', CreateContract: 'C', ChangeContract: 'S' }[r.flow] + '\')</div>'
+      + (r.comparison.rows.length
+          ? '<div class="devkit-scroll" style="overflow-x:auto; border:1px solid #eef0f3; border-radius:10px;">'
+            + '<table style="border-collapse:collapse; width:100%;">'
+            + '<tr>' + th('DocNo') + th('SAP_RETURN') + th('Success') + th('Contract No') + th('Message') + th('Processed') + '</tr>'
+            + r.comparison.rows.map(function (x) {
+                return '<tr>' + td(escH(x.docNo)) + td(escH(x.value ?? '—')) + td(x.success ? '<span style="color:#15803d;">✓</span>' : '<span style="color:#b91c1c;">✕</span>')
+                  + td(x.contractNo ? escH(x.contractNo) : '<span style="color:#b0b7c3;">—</span>') + td(x.message ? escH(x.message) : '<span style="color:#b0b7c3;">—</span>')
+                  + td(x.processedAt ? escH(x.processedAt.replace('T', ' ').slice(0, 16)) : '<span style="color:#b0b7c3;">—</span>') + '</tr>';
+              }).join('')
+            + '</table></div>'
+          : '<div style="font:400 12.5px \'IBM Plex Sans\'; color:#b0b7c3;">no staging rows for this period</div>')
+      + '</div>';
+
+    rep.innerHTML = html;
+    rep.style.display = 'flex';
+    document.querySelector('.console-box').style.flex = '0 0 170px';
+    $('resultCard').style.display = 'none';
+    rep.scrollTop = 0;
+  }
+
   // ---------- people & permissions ----------
   function renderPeopleReport(r) {
     if (!r || !r.user) return;
@@ -1357,6 +1412,9 @@
     } else if (state.action === 'people') {
       body = { env: state.env, module: 'org-lookup', query: $('peopleQuery').value.trim() };
       hideInspectReport();
+    } else if (state.action === 'sap-inspect') {
+      body = { env: state.env, proposalId, module: 'sap-inspect' };
+      hideInspectReport();
     } else {
       body = { env: state.env, proposalId, module: 'approve' };
     }
@@ -1410,6 +1468,7 @@
         else if (state.action === 'xray' && state.xrayScreen === 'pmmax') renderXrayPmMax(obj);
         else if (state.action === 'xray') renderXrayReport(obj);
         else if (state.action === 'people') renderPeopleReport(obj);
+        else if (state.action === 'sap-inspect') renderSapInspectReport(obj);
         else showResult(obj);
       } catch (e) { /* leave raw line visible */ }
     }
