@@ -1,0 +1,395 @@
+<meta charset="utf-8">
+<title>sam-devkit — Screen X-ray mockup (Approval Overview)</title>
+<style>
+  :root{
+    --accent:#4f46e5; --bg:#f6f7f9; --card:#fff; --line:#e7e9ee; --line2:#eef0f3;
+    --ink:#1a1d23; --mut:#667085; --mut2:#98a2b3; --mut3:#b0b7c3;
+    --green:#3fb950; --amber:#d29922; --red:#f85149;
+    --sans:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --mono:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;padding:0}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  @keyframes fadein{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  ::selection{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+  .scroll::-webkit-scrollbar{width:10px;height:10px}
+  .scroll::-webkit-scrollbar-thumb{background:#d0d5dd;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+
+  header{display:flex;align-items:center;gap:18px;padding:12px 22px;background:var(--card);border-bottom:1px solid var(--line);flex:none}
+  .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 40%,transparent);font:600 15px var(--mono);color:#fff}
+  .seg{display:flex;gap:3px;background:#f1f3f5;border:1px solid var(--line);border-radius:10px;padding:3px}
+  .seg button{display:flex;align-items:center;gap:7px;padding:5px 12px;border-radius:7px;font:600 12.5px var(--sans);color:var(--mut)}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10)}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+
+  main{flex:1;display:grid;grid-template-columns:384px 1fr;gap:20px;padding:20px 22px;min-height:0}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .sect{font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--mut2);margin-bottom:10px}
+
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .act{text-align:left;padding:11px 12px;border-radius:11px;background:#fff;border:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .act.on{background:color-mix(in srgb,var(--accent) 7%,#fff);border-color:var(--accent)}
+  .act .g{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 14px var(--mono);background:#f1f3f5;color:var(--mut)}
+  .act.on .g{background:var(--accent);color:#fff}
+  .act .t{font:600 12.5px var(--sans);color:var(--ink);line-height:1.2}
+  .act .d{font:400 10.5px var(--sans);color:#98a2b3;line-height:1.3}
+  .act.on .d{color:var(--mut)}
+
+  .ctx{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;background:#fafbfc;border:1px dashed #dfe3ea;font:400 11.5px var(--mono);color:#475467}
+  .ctx b{font-weight:600;color:var(--ink)}
+  .tb{font:600 9.5px var(--mono);padding:2px 8px;border-radius:5px}
+  .tb.R{color:#4f46e5;background:rgba(79,70,229,.10)}
+
+  .screens{display:flex;flex-direction:column;gap:8px}
+  .scr{display:flex;align-items:flex-start;gap:10px;text-align:left;padding:10px 12px;border-radius:10px;background:#fff;border:1px solid var(--line)}
+  .scr.on{background:color-mix(in srgb,var(--accent) 7%,#fff);border-color:var(--accent)}
+  .scr:disabled{opacity:.45;cursor:not-allowed}
+  .radio{width:15px;height:15px;border-radius:50%;border:1.5px solid #c5cbd4;flex:none;margin-top:1px;position:relative}
+  .scr.on .radio{border-color:var(--accent)}
+  .scr.on .radio::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--accent)}
+  .scr .mt{font:600 12px var(--sans);color:var(--ink)}
+  .scr .md{font:400 10.5px var(--sans);color:var(--mut2);margin-top:2px;line-height:1.35}
+
+  .roleseg{display:flex;gap:3px;background:#f1f3f5;border:1px solid var(--line);border-radius:10px;padding:3px}
+  .roleseg button{flex:1;padding:6px 10px;border-radius:7px;font:600 12px var(--sans);color:var(--mut);text-align:center}
+  .roleseg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10)}
+
+  .vtoggle{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;width:100%;text-align:left}
+  .vtoggle.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,#fff)}
+  .sw{width:34px;height:19px;border-radius:12px;background:#d5dae2;position:relative;flex:none;transition:background .15s}
+  .sw::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.2);transition:left .15s}
+  .vtoggle.on .sw{background:var(--accent)}
+  .vtoggle.on .sw::after{left:17px}
+  .vtoggle .vt{font:600 12px var(--sans);color:var(--ink)}
+  .vtoggle .vd{font:400 10.5px var(--sans);color:var(--mut2);margin-top:1px;line-height:1.35}
+
+  .right{display:flex;flex-direction:column;gap:16px;min-height:0;overflow-y:auto;padding-right:2px}
+  .right>*{flex:none}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 1px 2px rgba(16,24,40,.04);animation:fadein .22s ease}
+  .badge{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:20px;font:600 12px var(--sans)}
+  .b-green{color:#1a7f37;background:rgba(63,185,80,.14)}
+  .b-red{color:#b62324;background:rgba(248,81,73,.12)}
+  code.k{font:400 11px var(--mono);color:var(--ink);background:#f1f3f5;padding:2px 7px;border-radius:6px;border:1px solid var(--line)}
+
+  .twrap{overflow-x:auto;border:1px solid var(--line2);border-radius:10px}
+  table.ov{border-collapse:collapse;width:100%;min-width:720px}
+  .ov th{font:600 10px var(--sans);letter-spacing:.03em;text-transform:uppercase;color:var(--mut2);text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);background:#fafbfc;white-space:nowrap;cursor:pointer;user-select:none}
+  .ov th:first-child{text-align:left}
+  .ov th:hover{color:var(--accent)}
+  .ov th.sel{color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+  .ov td{font:400 12px var(--mono);color:#475467;text-align:right;padding:8px 10px;border-bottom:1px solid var(--line2);white-space:nowrap;cursor:pointer}
+  .ov td:first-child{text-align:left;font-weight:600;color:var(--ink)}
+  .ov tr:last-child td{border-bottom:none}
+  .ov td.sel{background:color-mix(in srgb,var(--accent) 8%,#fff);color:var(--accent);font-weight:600}
+  .ov td.bad{background:rgba(248,81,73,.10);color:#b62324;font-weight:600;position:relative}
+  .ov td.bad::after{content:'≠';position:absolute;top:2px;right:3px;font:700 9px var(--mono);color:var(--red)}
+  .legend{display:flex;gap:14px;align-items:center;margin-top:10px;font:400 10.5px var(--sans);color:var(--mut2)}
+  .legend .sw2{width:12px;height:12px;border-radius:4px;display:inline-block;vertical-align:-2px;margin-right:5px}
+
+  .prov .ph{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .prov h3{margin:0;font:700 14px var(--sans)}
+  .prow{display:grid;grid-template-columns:120px 1fr;gap:8px 14px;padding:9px 0;border-bottom:1px solid var(--line2);align-items:baseline}
+  .prow:last-child{border-bottom:none}
+  .prow .pl{font:600 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--mut3)}
+  .prow .pv{font:400 12px var(--mono);color:var(--ink);line-height:1.65;word-break:break-word}
+  .prow .pv .dim{color:var(--mut2)}
+  .prow .pv .op{color:var(--accent);font-weight:600}
+  .warnnote{font:400 11px var(--sans);color:#8b6a1f;background:rgba(210,153,34,.10);border:1px solid rgba(210,153,34,.25);border-radius:8px;padding:8px 11px;line-height:1.5;margin-top:6px}
+  .mismatch{font:400 11.5px var(--mono);color:#b62324;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.28);border-radius:8px;padding:9px 12px;line-height:1.6;margin-top:6px}
+  .anchor{font:400 10.5px var(--mono);color:var(--mut2)}
+  .anchor b{color:var(--mut);font-weight:500}
+</style>
+
+<header>
+  <div style="display:flex;align-items:center;gap:11px">
+    <div class="logo">&gt;_</div>
+    <div style="display:flex;flex-direction:column;line-height:1.1">
+      <span style="font:700 15px var(--sans);letter-spacing:-0.01em">sam-devkit</span>
+      <span style="font:500 10.5px var(--mono);color:#8a92a1;letter-spacing:.02em;margin-top:2px">approval workflow console</span>
+    </div>
+  </div>
+  <div class="seg">
+    <button type="button"><span class="dot" style="background:#8b949e"></span>local</button>
+    <button type="button" class="on"><span class="dot" style="background:#3fb950"></span>develop</button>
+    <button type="button"><span class="dot" style="background:#d29922"></span>qa</button>
+  </div>
+  <div style="flex:1"></div>
+  <div style="display:flex;align-items:center;gap:9px;background:#f8f9fb;border:1px solid var(--line);border-radius:9px;padding:6px 12px">
+    <span class="dot" style="background:#3fb950;box-shadow:0 0 0 3px rgba(63,185,80,.18)"></span>
+    <span style="font:400 12px var(--mono);color:#475467">https://web-sam-dev.manaosoftware.com/api</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT -->
+  <section class="panel scroll">
+    <div>
+      <div class="sect">Action</div>
+      <div class="acts">
+        <button type="button" class="act"><span class="g">✓</span><span class="t">Approve-through</span><span class="d">Run all role approvals</span></button>
+        <button type="button" class="act"><span class="g">⟳</span><span class="t">SAP fixup</span><span class="d">Reconcile SAP sync state</span></button>
+        <button type="button" class="act"><span class="g">⧉</span><span class="t">Clone → Draft</span><span class="d">Copy proposal + details to a new Draft</span></button>
+        <button type="button" class="act on"><span class="g">⌕</span><span class="t">Inspector</span><span class="d">X-ray one proposal — read-only</span></button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sect">Proposal</div>
+      <div class="ctx"><b>J-S001-R2600013</b> · v2 <span class="tb R">Type R</span><span style="flex:1"></span><span style="color:var(--green)">Approved</span></div>
+      <div style="font:400 10.5px var(--sans);color:var(--mut3);margin-top:6px">picked in Inspector — X-ray reads the same proposal</div>
+    </div>
+
+    <div>
+      <div class="sect">Screen</div>
+      <div class="screens">
+        <button type="button" class="scr on">
+          <span class="radio"></span>
+          <span><span class="mt">Approval › Overview list</span><br><span class="md">discount/rebate table per product — as rendered at /approval/{id}</span></span>
+        </button>
+        <button type="button" class="scr" disabled>
+          <span class="radio"></span>
+          <span><span class="mt">Request › Summary</span><br><span class="md">footer Current / Latest Approved / Changed — phase 3</span></span>
+        </button>
+        <button type="button" class="scr" disabled>
+          <span class="radio"></span>
+          <span><span class="mt">Request › Rebate P.M. Max</span><br><span class="md">per-page baseline — phase 5</span></span>
+        </button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sect">View as role</div>
+      <div class="roleseg" id="roleSeg">
+        <button type="button" class="on" data-role="sam">SAM</button>
+        <button type="button" data-role="sdm">SDM · PTE · CDR</button>
+      </div>
+      <div style="font:400 10.5px var(--sans);color:var(--mut3);margin-top:6px;line-height:1.4">column set ต่างกันตาม role — <span style="font-family:var(--mono)">rebate-columns.ts</span> (SAM สั้น / SDM ยาว + Price EXW, UCM, Var-Cost…)</div>
+    </div>
+
+    <div>
+      <div class="sect">Verify</div>
+      <button type="button" class="vtoggle on" id="vtoggle">
+        <span class="sw"></span>
+        <span><span class="vt">Verify vs live API</span><br><span class="vd">devkit recomputes from DB, then diffs against GET /approval/sam|sdm/{id} — mismatch = red</span></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- RIGHT -->
+  <section class="right scroll">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+        <span class="sect" style="margin:0">Replica — Approval › Overview · รายละเอียด / Details</span>
+        <span style="font:400 10.5px var(--mono);color:var(--mut3)" id="colcount"></span>
+        <div style="flex:1"></div>
+        <span class="badge" id="vbadge"></span>
+      </div>
+      <div style="font:400 11px var(--sans);color:var(--mut2);margin-bottom:12px">same column order & position as the real screen — click any column to trace it</div>
+      <div class="twrap scroll"><table class="ov" id="ovt"></table></div>
+      <div class="legend">
+        <span><span class="sw2" style="background:color-mix(in srgb,var(--accent) 20%,#fff);border:1px solid var(--accent)"></span>selected column</span>
+        <span><span class="sw2" style="background:rgba(248,81,73,.25);border:1px solid var(--red)"></span>devkit ≠ API (verify)</span>
+        <span style="flex:1"></span>
+        <span>values devkit-recomputed from <span style="font-family:var(--mono)">ProposalProductTypeRS</span> — not the API's numbers</span>
+      </div>
+    </div>
+
+    <div class="card prov" id="prov"></div>
+  </section>
+</main>
+
+<script>
+(function(){
+  'use strict';
+  /* ---- sample rows: current + previous(PreviousId) raw values per product ---- */
+  var ROWS = [
+    { p:'P-10021', pl:12500, exw:11400, ucm:3200, vc:8200, cm:'25.6%', vpl:'8.8%',
+      cur:{disc:500, nr1:300, sr1:150, fr1:100, sr3:50, sub:120},
+      prv:{disc:450, nr1:280, sr1:150, fr1:90, sr3:30, sub:120}, prvFound:true,
+      pages:{disc:{1:480,2:500}, nr1:{1:280,2:300}, sr1:{1:150}, fr1:{1:100}, sr3:{1:50}} },
+    { p:'P-10022', pl:11800, exw:10600, ucm:2900, vc:7900, cm:'24.5%', vpl:'6.7%',
+      cur:{disc:420, nr1:250, sr1:0, fr1:80, sr3:40, sub:0},
+      prv:{disc:420, nr1:250, sr1:0, fr1:80, sr3:40, sub:0}, prvFound:true,
+      pages:{disc:{1:420}, nr1:{1:250}, sr1:{}, fr1:{1:80}, sr3:{1:40}} },
+    { p:'P-10035', pl:9900, exw:9100, ucm:2400, vc:6700, cm:'26.4%', vpl:'8.1%',
+      cur:{disc:380, nr1:200, sr1:120, fr1:60, sr3:40, sub:85},
+      prv:null, prvFound:false,
+      pages:{disc:{1:380}, nr1:{1:200}, sr1:{1:120}, fr1:{1:60}, sr3:{1:40}} }
+  ];
+  function tot(v){ return v ? v.disc+v.nr1+v.sr1+v.fr1+v.sr3 : 0; }
+  function reb(v){ return v ? v.nr1+v.sr1+v.fr1+v.sr3 : 0; }
+  var fmt = function(n){ return n.toLocaleString('en-US'); };
+
+  /* API values (verify) — one seeded mismatch: P-10035 tot (API dropped SR3) */
+  function apiVal(row, key){
+    var d = cellVal(row, key);
+    if(row.p==='P-10035' && key==='tot') return 760;
+    return d;
+  }
+
+  /* ---- column definitions — order = position on the real screen ---- */
+  var RATE_ANCHOR = 'Sam/GetById/OverviewDetailTypeR.cs · Sdm/GetById/OverviewDetailTypeR.cs (สูตรซ้ำ 2 ชั้น)';
+  var GRAIN_RS = 'ต่อ (PRODUCT_CODE, RATE_TYPE): เอาหน้าสุดท้าย max(PAGE) → max(RATE) บนหน้านั้น → cast int (ตัดทศนิยม) · exclude SR2/AR1/SR4/AR2';
+  function rateProv(key, rtype, label){
+    return function(r){
+      var pgs = r.pages[key], keys = Object.keys(pgs);
+      var steps = keys.length
+        ? keys.map(function(pg){ return 'page '+pg+' → '+fmt(pgs[pg]); }).join(' · ')
+          + ' <span class="op">⇒</span> last page '+keys[keys.length-1]+' → <b>'+fmt(r.cur[key])+'</b>'
+        : 'no rows for this RATE_TYPE ⇒ 0';
+      return {
+        source:'<b>ProposalProductTypeRS.RATE</b> <span class="dim">filter</span> RATE_TYPE=\''+rtype+'\'<br><span class="dim">stamp ตอน save rebate โดย</span> CreateProposalProductDiscountRebate.cs <span class="dim">(delete + re-insert ทุกครั้ง)</span>',
+        grain:GRAIN_RS, formula:label+' = RATE ตาม grain rule', result:steps, anchor:RATE_ANCHOR };
+    };
+  }
+  var COLS = [
+    {key:'p', label:'Product', role:'both', prov:function(r){ return {
+      source:'<b>ProposalProduct.PRODUCT_CODE</b>', grain:'1 แถว UI = 1 product (Type R/S ยุบเหลือหน้าสุดท้าย)',
+      formula:'—', result:r.p, anchor:RATE_ANCHOR }; }},
+    {key:'pl', label:'Price List', role:'both', prov:function(r){ return {
+      source:'<b>ProposalProductTypeRS.PRICE_LIST</b> <span class="dim">— snapshot จาก</span> warehouse.Product <span class="dim">ตอน save</span>',
+      grain:'g.First() โดยไม่ sort — non-deterministic ถ้าแถวใน product เดียวกันไม่ uniform (gotcha #12)',
+      formula:'pass-through (format "#,##0")', result:fmt(r.pl), anchor:RATE_ANCHOR }; }},
+    {key:'disc', label:'Disc.', role:'both', prov:rateProv('disc','Discount','Disc.')},
+    {key:'nr1', label:'Nor. Reb.', role:'both', prov:rateProv('nr1','NR1','Nor. Reb.')},
+    {key:'sr1', label:'Spec. Reb.', role:'both', prov:rateProv('sr1','SR1','Spec. Reb.')},
+    {key:'fr1', label:'Frei. Reb.', role:'both', prov:rateProv('fr1','FR1','Frei. Reb.')},
+    {key:'sr3', label:'Lyt. Prog.', role:'both', prov:rateProv('sr3','SR3','Lyt. Prog.')},
+    {key:'sub', label:'Net Freight', role:'both', warn:'⚠ label หลอก — ค่าจริงคือ Freight Subsidy ไม่ใช่ค่า freight สุทธิ · snapshot at save-time: sync subsidy ใหม่หลัง save ไม่เปลี่ยนค่านี้ จนกว่าจะ save detail ใหม่', prov:function(r){ return {
+      source:'<b>ProposalProductTypeRS.SUBSIDY</b><br><span class="dim">chain:</span> ACCDW View_SAM_FreightSubsidy_bySoldto → sp_Sync_Subsidy → warehouse.Subsidy.FREIGHT_SUBSIDY_BT → OUTER APPLY ตอน save (ORGNO+CUS_SOL_CODE+PRODUCT_CODE+PERIOD เป๊ะ — level-1 เท่านั้น, ไม่ match → 0)',
+      grain:'Sold To = ProposalCustomers.SOLDTO_CODE ตัวแรก (distinct+order) — หลาย sold-to ใช้ code แรกตัวเดียว',
+      formula:'ไม่เข้าสูตร Tot. Disc./Reb.', result:fmt(r.cur.sub)+(r.cur.sub===0?' <span class="dim">(no subsidy match → 0)</span>':''),
+      anchor:'CreateProposalDetailCommandHandler.NetFreightLookup.cs · SAM-1762/CR5.1' }; }},
+    {key:'tot', label:'Tot. Disc./Reb.', role:'both', prov:function(r){ var c=r.cur; return {
+      source:'คำนวณ — ไม่มี column ใน DB', grain:'ผลจาก 5 column ข้างซ้าย (grain rule แล้ว)',
+      formula:'Disc + NR1 + SR1 + FR1 + SR3 <span class="dim">(ไม่รวม SUBSIDY)</span>',
+      result:fmt(c.disc)+' + '+fmt(c.nr1)+' + '+fmt(c.sr1)+' + '+fmt(c.fr1)+' + '+fmt(c.sr3)+' <span class="op">=</span> <b>'+fmt(tot(c))+'</b>',
+      anchor:RATE_ANCHOR }; }},
+    {key:'pm', label:'PM. Disc./Reb.', role:'both', prov:function(r){ return {
+      source:'query เดียวกันบนแถวของ <b>Proposal.PreviousId</b> (1 ระดับ)',
+      grain:'จับคู่ PRODUCT_CODE — ไม่เจอ = 0',
+      formula:'Disc + NR1 + SR1 + FR1 + SR3 ของ previous',
+      result: r.prvFound
+        ? 'matched previous v1 → '+fmt(r.prv.disc)+' + '+fmt(r.prv.nr1)+' + '+fmt(r.prv.sr1)+' + '+fmt(r.prv.fr1)+' + '+fmt(r.prv.sr3)+' <span class="op">=</span> <b>'+fmt(tot(r.prv))+'</b>'
+        : '<b>no match</b> — product ไม่มีใน previous ⇒ <b>0</b>',
+      anchor:RATE_ANCHOR }; }},
+    {key:'vsd', label:'vs PM. Disc.', role:'both', prov:function(r){ return {
+      source:'คำนวณ', grain:'discount อย่างเดียว',
+      formula:'Disc(cur) − Disc(prev)',
+      result: r.prvFound ? fmt(r.cur.disc)+' − '+fmt(r.prv.disc)+' <span class="op">=</span> <b>'+fmt(r.cur.disc-(r.prv?r.prv.disc:0))+'</b>'
+                         : fmt(r.cur.disc)+' − 0 <span class="op">=</span> <b>'+fmt(r.cur.disc)+'</b>',
+      anchor:RATE_ANCHOR }; }},
+    {key:'vsr', label:'vs PM. Reb.', role:'both', prov:function(r){ return {
+      source:'คำนวณ', grain:'rebate 4 ตัว (NR1+SR1+FR1+SR3) ไม่รวม discount',
+      formula:'ΣRebate(cur) − ΣRebate(prev)',
+      result: fmt(reb(r.cur))+' − '+fmt(reb(r.prv))+' <span class="op">=</span> <b>'+fmt(reb(r.cur)-reb(r.prv))+'</b>',
+      anchor:RATE_ANCHOR }; }},
+    /* SDM/PTE/CDR extra set */
+    {key:'exw', label:'Price EXW', role:'sdm', prov:function(r){ return {
+      source:'<b>ProposalProductTypeRS</b> + warehouse snapshot', grain:'ชุดยาว RB_SDM_PT_CD_TYPE_R เท่านั้น — SAM ไม่เห็น',
+      formula:'pass-through', result:fmt(r.exw), anchor:'Sdm/GetById/OverviewDetailTypeR.cs · rebate-columns.ts' }; }},
+    {key:'ucm', label:'UCM', role:'sdm', prov:function(r){ return {
+      source:'warehouse snapshot', grain:'ชุดยาวเท่านั้น', formula:'pass-through', result:fmt(r.ucm), anchor:'Sdm/GetById/OverviewDetailTypeR.cs' }; }},
+    {key:'vc', label:'Var-Cost', role:'sdm', prov:function(r){ return {
+      source:'warehouse snapshot <span class="dim">(g.First() ไม่ sort — gotcha #12)</span>', grain:'ชุดยาวเท่านั้น', formula:'pass-through', result:fmt(r.vc), anchor:'Sdm/GetById/OverviewDetailTypeR.cs' }; }},
+    {key:'cm', label:'Comm. Margin', role:'sdm', prov:function(r){ return {
+      source:'คำนวณฝั่ง BE', grain:'ชุดยาวเท่านั้น', formula:'margin หลังหัก discount/rebate/cost', result:r.cm, anchor:'Sdm/GetById/OverviewDetailTypeR.cs' }; }},
+    {key:'vpl', label:'% vs Price List', role:'sdm', prov:function(r){ return {
+      source:'คำนวณฝั่ง BE', grain:'ชุดยาวเท่านั้น', formula:'Tot. Disc./Reb. ÷ Price List', result:r.vpl+' <span class="dim">('+fmt(tot(r.cur))+' ÷ '+fmt(r.pl)+')</span>', anchor:'Sdm/GetById/OverviewDetailTypeR.cs' }; }}
+  ];
+
+  function cellVal(r, key){
+    switch(key){
+      case 'p': return r.p; case 'pl': return r.pl;
+      case 'disc': case 'nr1': case 'sr1': case 'fr1': case 'sr3': case 'sub': return r.cur[key];
+      case 'tot': return tot(r.cur); case 'pm': return tot(r.prv);
+      case 'vsd': return r.cur.disc-(r.prv?r.prv.disc:0); case 'vsr': return reb(r.cur)-reb(r.prv);
+      case 'exw': return r.exw; case 'ucm': return r.ucm; case 'vc': return r.vc;
+      case 'cm': return r.cm; case 'vpl': return r.vpl;
+    }
+  }
+
+  var st = { role:'sam', verify:true, selCol:'tot', selRow:ROWS[2] };
+  var $ = function(id){ return document.getElementById(id); };
+  function activeCols(){ return COLS.filter(function(c){ return c.role==='both' || c.role===st.role; }); }
+
+  function renderTable(){
+    var cols = activeCols(), mismatches = 0, cells = 0;
+    var thead = '<tr>'+cols.map(function(c){
+      return '<th class="'+(c.key===st.selCol?'sel':'')+'" data-col="'+c.key+'">'+c.label+'</th>';
+    }).join('')+'</tr>';
+    var body = ROWS.map(function(r){
+      return '<tr>'+cols.map(function(c){
+        var v = cellVal(r,c.key), a = apiVal(r,c.key);
+        var bad = st.verify && c.key!=='p' && String(v)!==String(a);
+        if(c.key!=='p'){ cells++; if(bad) mismatches++; }
+        var cls = [];
+        if(c.key===st.selCol && r===st.selRow) cls.push('sel');
+        if(bad) cls.push('bad');
+        var disp = (typeof v==='number') ? fmt(v) : v;
+        return '<td class="'+cls.join(' ')+'" data-col="'+c.key+'" data-p="'+r.p+'">'+disp+'</td>';
+      }).join('')+'</tr>';
+    }).join('');
+    $('ovt').innerHTML = thead + body;
+    $('colcount').textContent = cols.length+' columns · '+ROWS.length+' products';
+    $('vbadge').className = 'badge '+(st.verify ? (mismatches? 'b-red':'b-green') : '');
+    $('vbadge').innerHTML = st.verify
+      ? (mismatches
+          ? '<span class="dot" style="background:var(--red)"></span>'+mismatches+' mismatch · '+(cells-mismatches)+'/'+cells+' match'
+          : '<span class="dot" style="background:var(--green)"></span>all '+cells+' cells match API')
+      : '';
+    Array.prototype.forEach.call(document.querySelectorAll('#ovt th'), function(th){
+      th.addEventListener('click', function(){ st.selCol = th.getAttribute('data-col'); render(); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#ovt td'), function(td){
+      td.addEventListener('click', function(){
+        st.selCol = td.getAttribute('data-col');
+        st.selRow = ROWS.filter(function(r){ return r.p===td.getAttribute('data-p'); })[0];
+        render();
+      });
+    });
+  }
+
+  function renderProv(){
+    var col = COLS.filter(function(c){ return c.key===st.selCol; })[0];
+    var r = st.selRow, p = col.prov(r);
+    var v = cellVal(r,col.key), a = apiVal(r,col.key);
+    var bad = st.verify && String(v)!==String(a);
+    $('prov').innerHTML =
+      '<div class="ph"><span class="sect" style="margin:0">Column trace</span>'
+      + '<h3>'+col.label+'</h3><code class="k">'+r.p+'</code>'
+      + (bad ? '<span class="badge b-red"><span class="dot" style="background:var(--red)"></span>devkit ≠ API</span>' : '')
+      + '</div>'
+      + '<div class="prow"><span class="pl">Source</span><span class="pv">'+p.source+'</span></div>'
+      + '<div class="prow"><span class="pl">Grain / filter</span><span class="pv">'+p.grain+'</span></div>'
+      + '<div class="prow"><span class="pl">Formula</span><span class="pv">'+p.formula+'</span></div>'
+      + '<div class="prow"><span class="pl">Result</span><span class="pv">'+p.result+'</span></div>'
+      + '<div class="prow"><span class="pl">Code anchor</span><span class="pv anchor"><b>'+p.anchor+'</b></span></div>'
+      + (col.warn ? '<div class="warnnote">'+col.warn+'</div>' : '')
+      + (bad ? '<div class="mismatch">devkit recompute = <b>'+(typeof v==='number'?fmt(v):v)+'</b> · API returns = <b>'+(typeof a==='number'?fmt(a):a)+'</b> (Δ '+fmt(Math.abs(a-v))+' = SR3?)<br>เช็คสูตรสองชั้น: Sam/OverviewDetailTypeR.cs vs Sdm/OverviewDetailTypeR.cs — แก้ที่เดียวอีกที่ไม่แก้ = drift แบบนี้</div>' : '');
+  }
+
+  function render(){ renderTable(); renderProv(); }
+
+  Array.prototype.forEach.call(document.querySelectorAll('#roleSeg button'), function(b){
+    b.addEventListener('click', function(){
+      st.role = b.getAttribute('data-role');
+      Array.prototype.forEach.call(document.querySelectorAll('#roleSeg button'), function(x){ x.className=''; });
+      b.className = 'on';
+      var ok = activeCols().some(function(c){ return c.key===st.selCol; });
+      if(!ok) st.selCol = 'tot';
+      render();
+    });
+  });
+  $('vtoggle').addEventListener('click', function(){
+    st.verify = !st.verify;
+    $('vtoggle').className = 'vtoggle'+(st.verify?' on':'');
+    render();
+  });
+
+  render();
+})();
+</script>

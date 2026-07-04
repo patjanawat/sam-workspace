@@ -1,10 +1,11 @@
 # sam-devkit
 
-Dev harness for the SAM proposal lifecycle. Three tools: **Approve-through** — drive a
+Dev harness for the SAM proposal lifecycle. Four tools: **Approve-through** — drive a
 Pending proposal through the full approval chain (`sam → sdm → pte → cdr`) without
 logging in as four roles by hand — **SAP fixup** — force-set a proposal's SAP
-state directly in the DB — and **Clone → Draft** — copy a proposal (details included)
-into a fresh Draft directly in the DB. **Dev/local only — never point it at production.**
+state directly in the DB — **Clone → Draft** — copy a proposal (details included)
+into a fresh Draft directly in the DB — and **Inspector** — read-only X-ray of one
+proposal for investigation. **Dev/local only — never point it at production.**
 
 ## Setup
 ```bash
@@ -145,6 +146,34 @@ copied.
 - Each search row has an **Action** column — copy the proposal id, or open the proposal in the web app.
 - After a successful clone the search box switches to the result's `RequestNo` and the list
   **auto-refreshes**, so the fresh Draft shows up immediately (both modes).
+
+## Inspector (direct DB — read-only)
+
+X-ray one proposal to answer "where is it stuck and why" without opening SSMS.
+Paste a proposal id (or pick one from the recent list) and run — everything is
+`SELECT`-only through the same `db` config + dev-host guard as SAP fixup.
+
+**What it shows**
+- **Header** — status decoded (incl. the `10` in-progress sentinel), Type P=1/R=2/S=3,
+  period, CustomerGroup, creator (+role), dates, `SAPStatus`, `RowVersion` (hex).
+- **Version lineage** — walks the `PreviousId` chain both directions; current node flagged.
+- **Approval timeline** — `ApprovalHistory` in order, with `BYPASS` (ASM auto-bypass) and
+  `DELEGATE` badges.
+- **Who can approve right now** — derives the waiting role from history + status, lists that
+  role's users and why each can/can't act: lockout, inactive, active delegation today
+  (Thai timezone), sam-track ownership (creator or their direct manager only — otherwise
+  the detail GET 403s), and the SDM auto-delegate rule (ALL SDM delegating → step
+  auto-approves).
+- **Diagnosis** — always-on checklist: stuck sentinel 10, Temp(0) cleanup, CloseMonth lock
+  for the period, Approved-but-`SAPStatus`-empty (async CDR job), CustomerGroup conflict
+  (another Draft/Pending on the same CG this period), past-month clone rule.
+- **Payloads** — decodes the double-encoded rebate/special/accum JSON: schemaVersion,
+  active/deleted pages, product ids, contract values.
+- **Related rows** — ProposalCustomer / ProposalProduct / ProposalFile (MinIO keys).
+
+**Notes**
+- Requires the `db` block in `config.json` (same as SAP fixup); no role accounts needed.
+- Writes nothing. To fix what it finds, use SAP fixup / Clone / SQL by hand.
 
 ## Test
 ```bash

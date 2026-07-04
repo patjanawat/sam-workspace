@@ -262,6 +262,9 @@
           <div id="resultJson" style="margin-top:10px; background:#fafbfc; border:1px solid #eef0f3; border-radius:9px; padding:12px 14px; overflow-x:auto;"></div>
         </details>
       </div>
+
+      <!-- Inspector report -->
+      <div id="inspectReport" class="devkit-scroll" style="display:none; flex:1; min-height:0; overflow-y:auto; flex-direction:column; gap:16px;"></div>
     </section>
   </main>
 </div>
@@ -295,6 +298,7 @@
     { key: 'approve-through', label: 'Approve-through', desc: 'Run all role approvals', glyph: '✓' },
     { key: 'sap-fixup', label: 'SAP fixup', desc: 'Set SAP status / contract no', glyph: '⟳' },
     { key: 'clone', label: 'Clone → Draft', desc: 'Copy proposal + details to a new Draft', glyph: '⧉' },
+    { key: 'inspect', label: 'Inspector', desc: 'X-ray one proposal — read-only', glyph: '⌕' },
   ];
   // Real backend contract: success / fail / '' (clear) / omitted (leave unchanged — sentinel)
   const SAP_OPTIONS = [
@@ -303,7 +307,7 @@
     { key: 'fail', label: 'fail', dot: '#f85149' },
     { key: '', label: 'clear', dot: '#d29922' },
   ];
-  const PROPOSAL_STATUS = { 0: 'Temp', 1: 'Draft', 2: 'Pending', 3: 'Approved', 4: 'Rejected' };
+  const PROPOSAL_STATUS = { 0: 'Temp', 1: 'Draft', 2: 'Pending', 3: 'Approved', 4: 'Rejected', 5: 'Skipped', 10: 'In-progress (sentinel)' };
   const STATUS_COLOR = { Approved: C.green, Rejected: C.red, Pending: C.amber, Draft: '#8b949e', Temp: '#8b949e' };
   const GROUP_LETTER = { 1: 'P', 2: 'R', 3: 'S' };
   const GROUP_COLOR = { 1: { fg: '#b45309', bg: 'rgba(180,83,9,.10)' }, 2: { fg: '#4f46e5', bg: 'rgba(79,70,229,.10)' }, 3: { fg: '#0d9488', bg: 'rgba(13,148,136,.10)' } };
@@ -428,11 +432,13 @@
   function syncAction() {
     const sap = state.action === 'sap-fixup';
     const clone = state.action === 'clone';
+    const insp = state.action === 'inspect';
     $('sapSection').hidden = !sap;
     $('contractSection').hidden = !sap;
     $('proposalSection').hidden = clone;
     $('cloneSection').hidden = !clone;
-    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : 'Run approve-through';
+    if (!insp) hideInspectReport();
+    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : 'Run approve-through';
     if (clone) syncCloneMode();
     syncRun();
   }
@@ -834,6 +840,163 @@
     card.style.display = 'block';
   }
 
+
+  // ---------- inspector report ----------
+  function hideInspectReport() {
+    const rep = $('inspectReport');
+    if (!rep) return;
+    rep.style.display = 'none';
+    rep.innerHTML = '';
+    document.querySelector('.console-box').style.flex = '1';
+  }
+  function escH(v) {
+    return String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+  const INSP_STATUS_STYLE = {
+    Approved: { fg: '#15803d', bg: 'rgba(63,185,80,.14)' },
+    Pending: { fg: '#4338ca', bg: 'rgba(79,70,229,.10)' },
+    Rejected: { fg: '#b91c1c', bg: 'rgba(248,81,73,.12)' },
+    Draft: { fg: '#a16207', bg: 'rgba(210,153,34,.14)' },
+    'In-progress (sentinel)': { fg: '#b91c1c', bg: 'rgba(248,81,73,.12)' },
+  };
+  function inspCard(title, bodyHtml) {
+    return '<div class="result-card" style="display:block;">'
+      + (title ? '<div class="section-title">' + title + '</div>' : '') + bodyHtml + '</div>';
+  }
+  function inspKV(label, value) {
+    return '<div style="min-width:0;"><div style="font:500 11.5px \'IBM Plex Sans\'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3; margin-bottom:3px;">' + label + '</div>'
+      + '<div style="font:400 13.5px \'IBM Plex Mono\',monospace; color:#1a1d23; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + value + '</div></div>';
+  }
+  function renderInspectReport(r) {
+    if (!r || !r.proposal) return;
+    const p = r.proposal;
+    const ss = INSP_STATUS_STYLE[p.statusName] || { fg: '#667085', bg: '#f1f3f5' };
+    const gc = GROUP_COLOR[p.groupId] || { fg: '#667085', bg: '#f1f3f5' };
+
+    // header
+    let html = inspCard('', ''
+      + '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">'
+      + '<span style="font:700 17px \'IBM Plex Mono\',monospace;">' + escH(p.requestNo) + '</span>'
+      + '<span style="font:400 13px \'IBM Plex Mono\',monospace; color:#98a2b3;">v' + p.version + '</span>'
+      + '<span style="font:600 12px \'IBM Plex Mono\',monospace; padding:2px 9px; border-radius:5px; color:' + gc.fg + '; background:' + gc.bg + ';">Type ' + escH(p.typeLetter) + '</span>'
+      + '<span style="font:600 12.5px \'IBM Plex Sans\'; padding:4px 11px; border-radius:20px; color:' + ss.fg + '; background:' + ss.bg + ';">' + escH(p.statusName) + '</span>'
+      + '<div style="flex:1;"></div><code style="font:400 12px \'IBM Plex Mono\',monospace; background:#f1f3f5; padding:3px 8px; border-radius:6px; border:1px solid #e7e9ee;">' + p.id.slice(0, 8) + '…' + p.id.slice(-4) + '</code></div>'
+      + '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px 18px; margin-top:14px;">'
+      + inspKV('Period', p.year + ' / ' + String(p.month).padStart(2, '0'))
+      + inspKV('Customer group', escH(p.customerGroupCode))
+      + inspKV('Region', escH(p.regionName || '—'))
+      + inspKV('Sale org / office', escH(p.saleOrgCode) + ' / ' + escH(p.saleOfficeCode))
+      + inspKV('Created by', escH(p.creatorName) + ' <span style="color:#98a2b3;">(' + escH(p.creatorRole) + ')</span>')
+      + inspKV('Requested', escH((p.requestDate || '').replace('T', ' ').slice(0, 16)))
+      + inspKV('Start → End', escH(p.startDate) + ' → ' + escH(p.endDate))
+      + inspKV('Approved', p.approvalDate ? escH(p.approvalDate.replace('T', ' ').slice(0, 16)) + (p.lastApprovalName ? ' <span style="color:#98a2b3;">by ' + escH(p.lastApprovalName) + '</span>' : '') : '—')
+      + inspKV('SAPStatus', p.sapStatus ? escH(p.sapStatus) : '<span style="color:#b0b7c3;">— none</span>')
+      + inspKV('RowVersion', escH(p.rowVersion))
+      + '</div>');
+
+    // lineage
+    if (r.lineage && r.lineage.length) {
+      const chips = r.lineage.map((n) => {
+        const nm = PROPOSAL_STATUS[n.status] || n.status;
+        const cur = n.current;
+        return '<span style="display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:9px; border:1px solid ' + (cur ? 'var(--accent)' : '#e7e9ee') + '; background:' + (cur ? 'color-mix(in srgb, var(--accent) 7%, #fff)' : '#fafbfc') + '; font:400 12.5px \'IBM Plex Mono\',monospace;" title="' + escH(n.requestNo) + '">'
+          + '<b style="color:' + (cur ? 'var(--accent)' : '#1a1d23') + ';">v' + n.version + '</b>'
+          + '<span style="font:400 11px \'IBM Plex Sans\'; color:#98a2b3;">' + escH(nm) + '</span></span>';
+      }).join('<span style="color:#c5cbd4; font:400 14px \'IBM Plex Mono\',monospace;"> → </span>');
+      html += inspCard('Version lineage · PreviousId chain', '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' + chips + '</div>');
+    }
+
+    // timeline
+    if (r.timeline && r.timeline.length) {
+      const rows = r.timeline.map((t) => {
+        const actName = { 0: 'Pending', 3: 'Approved', 4: 'Rejected', 5: 'Skipped' }[t.action] || t.action;
+        const ok = t.action === 3 || t.action === 5;
+        const flags = (t.isBypass ? ' <span style="font:600 10.5px \'IBM Plex Mono\',monospace; color:#a16207; background:rgba(210,153,34,.14); padding:2px 8px; border-radius:5px;">BYPASS</span>' : '')
+          + (t.isDelegate ? ' <span style="font:600 10.5px \'IBM Plex Mono\',monospace; color:#0d5cb6; background:rgba(88,166,255,.13); padding:2px 8px; border-radius:5px;">DELEGATE</span>' : '');
+        return '<div style="display:flex; align-items:baseline; gap:10px; padding:8px 0; border-bottom:1px solid #eef0f3;">'
+          + '<span style="font:600 13px \'IBM Plex Mono\',monospace; color:' + (t.action === 4 ? '#b91c1c' : ok ? '#15803d' : '#667085') + '; width:16px; text-align:center;">' + (t.action === 4 ? '✕' : ok ? '✓' : '○') + '</span>'
+          + '<span style="font:600 11px \'IBM Plex Mono\',monospace; letter-spacing:.04em; text-transform:uppercase; color:#98a2b3; width:34px;">' + escH(t.roleCode) + '</span>'
+          + '<span style="font:600 13.5px \'IBM Plex Sans\'; color:#1a1d23;">' + escH(t.approver || '—') + '</span>'
+          + '<span style="font:400 12.5px \'IBM Plex Sans\'; color:#667085;">' + escH(actName) + '</span>' + flags
+          + '<span style="flex:1;"></span>'
+          + '<span style="font:400 12px \'IBM Plex Mono\',monospace; color:#98a2b3;">' + escH((t.actionDate || '').replace('T', ' ').slice(0, 16)) + '</span>'
+          + '</div>' + (t.comment ? '<div style="font:400 12.5px \'IBM Plex Sans\'; color:#667085; padding:4px 0 8px 60px;">“' + escH(t.comment) + '”</div>' : '');
+      }).join('');
+      html += inspCard('Approval timeline · ApprovalHistory', rows);
+    }
+
+    // who can approve
+    const who = r.who || { rows: [] };
+    const step = r.step || {};
+    let whoBody = '';
+    if (step.state === 'approved') whoBody = '<div style="font:600 13.5px \'IBM Plex Sans\'; color:#667085;">No approver needed — chain complete</div>';
+    else if (step.state === 'rejected') whoBody = '<div style="font:600 13.5px \'IBM Plex Sans\'; color:#b91c1c;">Rejected' + (step.rejectedBy ? ' by ' + escH(step.rejectedBy) : '') + '</div>';
+    else if (step.state === 'not-submitted') whoBody = '<div style="font:600 13.5px \'IBM Plex Sans\'; color:#667085;">Not submitted yet — no approval step active</div>';
+    else {
+      whoBody = '<div style="font:600 13.5px \'IBM Plex Sans\'; margin-bottom:10px;">Current step: <span style="text-transform:uppercase;">' + escH(step.nextRole || '?') + '</span>'
+        + (step.state === 'blocked' ? ' <span style="color:#b91c1c;">— blocked by status sentinel (see diagnosis)</span>' : '') + '</div>';
+      if (who.sdmAutoDelegate) whoBody += '<div style="font:400 12.5px \'IBM Plex Sans\'; color:#a16207; background:rgba(210,153,34,.10); border:1px solid rgba(210,153,34,.25); border-radius:8px; padding:8px 11px; margin-bottom:10px;">ALL SDM users have an active delegation today — this step auto-approves on the next SAM action (IsDelegate=true), nobody needs to press anything.</div>';
+      whoBody += (who.rows || []).map((u) => '<div style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:9px; border:1px solid ' + (u.eligible ? 'color-mix(in srgb, var(--accent) 40%, #eef0f3)' : '#eef0f3') + '; background:' + (u.eligible ? 'color-mix(in srgb, var(--accent) 5%, #fff)' : '#fafbfc') + '; margin-bottom:8px;">'
+        + '<div><div style="font:600 13px \'IBM Plex Sans\'; color:#1a1d23;">' + escH(u.name) + '</div><div style="font:400 11.5px \'IBM Plex Mono\',monospace; color:#98a2b3;">' + escH(u.email) + '</div></div>'
+        + '<div style="margin-left:auto; font:400 12px \'IBM Plex Sans\'; color:' + (u.eligible ? '#15803d' : '#667085') + '; text-align:right; max-width:55%;">' + (u.eligible ? 'can approve now' : escH(u.reasons.join(' · '))) + '</div>'
+        + '</div>').join('') || '<div style="font:400 12.5px \'IBM Plex Sans\'; color:#98a2b3;">no users found for this role</div>';
+    }
+    html += inspCard('Who can approve right now', whoBody);
+
+    // diagnosis — dark, terminal voice
+    const diag = r.diagnosis || [];
+    const nOk = diag.filter((d) => d.level === 'ok').length;
+    const nWarn = diag.filter((d) => d.level === 'warn').length;
+    const nErr = diag.filter((d) => d.level === 'err').length;
+    const dRows = diag.map((d) => {
+      const ic = d.level === 'ok' ? '✓' : d.level === 'warn' ? '!' : '✕';
+      const icC = d.level === 'ok' ? '#3fb950' : d.level === 'warn' ? '#d29922' : '#f85149';
+      const dtC = d.level === 'ok' ? '#8b949e' : d.level === 'warn' ? '#d29922' : '#ffa198';
+      return '<div style="display:grid; grid-template-columns:20px 150px 1fr; gap:10px; align-items:baseline; padding:6px 0; border-bottom:1px solid #161b22;">'
+        + '<span style="font:600 13px \'IBM Plex Mono\',monospace; text-align:center; color:' + icC + ';">' + ic + '</span>'
+        + '<span style="font:500 13px \'IBM Plex Mono\',monospace; color:' + (d.level === 'err' ? '#ff7b72' : '#c9d1d9') + ';">' + escH(d.id) + '</span>'
+        + '<span style="font:400 12.5px \'IBM Plex Mono\',monospace; line-height:1.5; color:' + dtC + ';">' + escH(d.detail) + '</span></div>';
+    }).join('');
+    html += '<div style="background:#0d1117; border:1px solid #1c2128; border-radius:14px; overflow:hidden; box-shadow:0 8px 24px rgba(13,17,23,.14); flex:none;">'
+      + '<div style="display:flex; align-items:center; gap:11px; padding:11px 15px; border-bottom:1px solid #21262d;">'
+      + '<span style="font:600 13px \'IBM Plex Mono\',monospace; color:#8b949e;">diagnosis</span>'
+      + '<span style="font:400 12px \'IBM Plex Mono\',monospace; color:#484f58;">' + diag.length + ' checks · ' + nOk + ' ok' + (nWarn ? ' · ' + nWarn + ' warn' : '') + (nErr ? ' · ' + nErr + ' fail' : '') + '</span></div>'
+      + '<div style="padding:10px 16px 14px;">' + dRows + '</div></div>';
+
+    // payloads
+    const pl = r.payloads || {};
+    const plChip = (label, s) => s
+      ? '<div style="display:flex; align-items:center; gap:8px; padding:6px 11px; border-radius:9px; background:#fafbfc; border:1px solid #eef0f3; font:400 12.5px \'IBM Plex Mono\',monospace; color:#475467;">' + label + ' <b>v' + escH(s.schemaVersion) + ' · ' + s.activePages + ' page' + (s.activePages === 1 ? '' : 's') + (s.deletedPages ? ' (+' + s.deletedPages + ' deleted)' : '') + ' · ' + s.productIds.length + ' products</b></div>'
+      : '<div style="display:flex; align-items:center; gap:8px; padding:6px 11px; border-radius:9px; background:#fafbfc; border:1px solid #eef0f3; font:400 12.5px \'IBM Plex Mono\',monospace; color:#b0b7c3;">' + label + ' — none</div>';
+    let plBody = '<div style="display:flex; flex-wrap:wrap; gap:8px;">' + plChip('rebate', pl.rebate) + plChip('special', pl.special) + plChip('accum', pl.accum) + '</div>';
+    const contracts = (pl.rebate && pl.rebate.contracts) || [];
+    if (contracts.length) {
+      plBody += '<div style="margin-top:10px; font:400 12.5px \'IBM Plex Mono\',monospace; color:#475467;">contract values: '
+        + contracts.map((c) => escH(c.productId) + '=' + (c.value ? '<b>' + escH(c.value) + '</b>' : '<span style="color:#b0b7c3;">empty</span>')).join(' · ') + '</div>';
+    }
+    html += inspCard('Payloads · decoded (double-encoding handled)', plBody);
+
+    // related
+    const rel = r.related || {};
+    const relBox = (n, t, items) => '<div style="border:1px solid #eef0f3; border-radius:10px; background:#fafbfc; padding:11px 13px;">'
+      + '<div style="font:700 18px \'IBM Plex Mono\',monospace; color:#1a1d23;">' + n + '</div>'
+      + '<div style="font:500 11.5px \'IBM Plex Sans\'; color:#98a2b3; margin-top:1px;">' + t + '</div>'
+      + (items.length ? '<ul style="margin:8px 0 0; padding:0; list-style:none;">' + items.slice(0, 6).map((i) => '<li style="font:400 11.5px \'IBM Plex Mono\',monospace; color:#667085; padding:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + escH(i) + '</li>').join('') + (items.length > 6 ? '<li style="font:400 11px \'IBM Plex Sans\'; color:#b0b7c3;">+' + (items.length - 6) + ' more</li>' : '') + '</ul>' : '')
+      + '</div>';
+    html += inspCard('Related rows', '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px;">'
+      + relBox((rel.customers || []).length, 'ProposalCustomer', (rel.customers || []).map((c) => c.code + ' — ' + (c.name || '')))
+      + relBox((rel.products || []).length, 'ProposalProduct', (rel.products || []).map((c) => c.code + ' · ' + c.rows + ' rows'))
+      + relBox((rel.files || []).length, 'ProposalFile → MinIO', (rel.files || []).map((f) => (f.name || '') + ' → ' + (f.path || '')))
+      + '</div>');
+
+    const rep = $('inspectReport');
+    rep.innerHTML = html;
+    rep.style.display = 'flex';
+    document.querySelector('.console-box').style.flex = '0 0 170px';
+    $('resultCard').style.display = 'none';
+    rep.scrollTop = 0;
+  }
+
   // ---------- run ----------
   async function run() {
     if (!canRun()) return;
@@ -848,6 +1011,9 @@
       if (state.sapStatus !== '__leave__') body.sapStatus = state.sapStatus;
       const cn = $('contractNo').value.trim();
       if (cn) body.contractNo = cn;
+    } else if (state.action === 'inspect') {
+      body = { env: state.env, proposalId, module: 'inspect' };
+      hideInspectReport();
     } else {
       body = { env: state.env, proposalId, module: 'approve' };
     }
@@ -894,7 +1060,11 @@
     if (!line.trim()) return;
     appendLine(line);
     if (line.startsWith('RESULT ')) {
-      try { showResult(JSON.parse(line.slice(7))); } catch (e) { /* leave raw line visible */ }
+      try {
+        const obj = JSON.parse(line.slice(7));
+        if (state.action === 'inspect') renderInspectReport(obj);
+        else showResult(obj);
+      } catch (e) { /* leave raw line visible */ }
     }
   }
 

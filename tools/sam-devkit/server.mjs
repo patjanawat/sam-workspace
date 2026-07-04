@@ -8,6 +8,7 @@ import { loadConfig, loadDbConfig, listEnvironments } from './lib/config.mjs';
 import { setSapState } from './lib/sap-fixup.mjs';
 import { setProposalContract } from './lib/proposal-contract.mjs';
 import { searchProposals, cloneProposal } from './lib/clone-proposal.mjs';
+import { inspectProposal } from './lib/inspector.mjs';
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
 
@@ -96,6 +97,17 @@ async function handleRun(req, res) {
     } catch (e) {
       const detail = e.bodyText ? ` — ${e.bodyText}` : '';
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'inspect') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await inspectProposal({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
     }
     return res.end();
   }
