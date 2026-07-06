@@ -60,11 +60,7 @@
   .link-btn { font: 600 13px 'IBM Plex Mono', monospace; color: var(--accent); padding: 2px 4px; }
   .link-btn:hover { text-decoration: underline; }
 
-  /* recent list */
-  .recent-filter { width: 100%; padding: 8px 10px 8px 33px; border-radius: 8px; border: 1px solid #e7e9ee; background: #f8f9fb; font-size: 14.5px; color: #1a1d23; outline: none; }
-  .recent-filter:focus { border-color: var(--accent); background: #fff; }
-  .recent-row { display: grid; grid-template-columns: 1fr 92px 48px; gap: 6px; align-items: center; border-radius: 6px; }
-  .recent-row:hover { background: #eef0f3; }
+  /* proposal picker row actions */
   .recent-view { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin: 0 auto; border-radius: 6px; color: #98a2b3; font-size: 16px; text-decoration: none; }
   .recent-view:hover { color: var(--accent); background: #fff; }
 
@@ -132,33 +128,30 @@
     <!-- LEFT: CONFIG -->
     <section class="panel devkit-scroll">
 
-      <!-- Proposal -->
-      <div id="proposalSection">
+      <!-- Proposal picker (shared across every proposal-based module) -->
+      <div id="pickerSection">
         <div class="section-title">Proposal</div>
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-          <label style="font:500 14.5px 'IBM Plex Sans'; color:#667085;">Proposal ID (guid)</label>
+        <div style="display:flex; gap:7px; margin-bottom:7px;">
+          <input type="text" id="pickerSearch" class="text-input" style="flex:1;" placeholder="search requestNo… (min 2 chars)" spellcheck="false">
+          <button type="button" id="pickerSearchBtn" class="chip-btn" style="flex:none; padding:0 14px;">search</button>
+          <button type="button" id="pickerReloadBtn" class="chip-btn" style="flex:none; padding:0 14px;" title="Reload latest 10">↻ reload</button>
         </div>
-        <div style="position:relative;">
-          <input type="text" id="proposalId" class="text-input" style="padding-right:34px;"
-                 placeholder="00000000-0000-0000-0000-000000000000" spellcheck="false">
-          <span id="proposalIcon" style="position:absolute; right:11px; top:50%; transform:translateY(-50%); font:600 16px 'IBM Plex Mono',monospace;"></span>
-        </div>
-        <div id="proposalError" style="display:none; font:400 14px 'IBM Plex Sans'; color:#d92d20; margin-top:6px;">Not a valid GUID — check the format.</div>
-
-        <div style="margin-top:12px;">
-          <div style="position:relative; margin-bottom:7px;">
-            <input type="text" id="recentFilter" class="recent-filter" placeholder="filter recent IDs…" spellcheck="false">
-            <span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#b0b7c3; font-size:15px;">⚲</span>
-          </div>
-          <div style="border:1px solid #eef0f3; border-radius:9px; background:#fafbfc; overflow:hidden;">
-            <div style="display:grid; grid-template-columns:1fr 92px 48px; gap:6px; padding:8px 11px 6px; border-bottom:1px solid #eef0f3;">
-              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Proposal ID</span>
-              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Executed</span>
-              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3; text-align:center;">View</span>
+        <div style="border:1px solid #eef0f3; border-radius:9px; background:#fafbfc; overflow:hidden;">
+          <div style="display:grid; grid-template-columns:1fr 32px; gap:6px; padding:8px 11px 6px; border-bottom:1px solid #eef0f3;">
+            <div style="display:grid; grid-template-columns:92px 1fr 40px 32px 74px; gap:6px; padding:0 8px;">
+              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Id</span>
+              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">RequestNo</span>
+              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Ver</span>
+              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Type</span>
+              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Status</span>
             </div>
-            <div class="devkit-scroll" id="recentList" style="max-height:190px; overflow-y:auto; padding:5px;"></div>
+            <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3; text-align:center;">View</span>
+          </div>
+          <div class="devkit-scroll" id="pickerResults" style="max-height:230px; overflow-y:auto; padding:5px;">
+            <div style="padding:12px; text-align:center; font:400 14px 'IBM Plex Sans'; color:#b0b7c3;">Loading recent proposals…</div>
           </div>
         </div>
+        <div id="cloneSrcWarn" style="display:none; font:400 14px 'IBM Plex Sans'; color:#a16207; margin-top:6px;"></div>
       </div>
 
       <!-- Action -->
@@ -194,41 +187,17 @@
         </label>
       </div>
 
-      <!-- Clone: source search -->
-      <div id="cloneSection" hidden>
-        <div class="section-title">Source proposal</div>
-        <div style="display:flex; gap:7px; margin-bottom:7px;">
-          <input type="text" id="cloneSearch" class="text-input" style="flex:1;" placeholder="search requestNo… (min 2 chars)" spellcheck="false">
-          <button type="button" id="cloneSearchBtn" class="chip-btn" style="flex:none; padding:0 14px;">search</button>
-        </div>
-        <div style="border:1px solid #eef0f3; border-radius:9px; background:#fafbfc; overflow:hidden;">
-          <div style="display:grid; grid-template-columns:1fr 76px; gap:6px; padding:8px 11px 6px; border-bottom:1px solid #eef0f3;">
-            <div style="display:grid; grid-template-columns:1fr 36px 32px 74px 32px; gap:6px; padding:0 8px;">
-              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">RequestNo</span>
-              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Ver</span>
-              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Type</span>
-              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Status</span>
-              <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3; text-align:center;">SAP</span>
-            </div>
-            <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3; text-align:center;">Action</span>
-          </div>
-          <div class="devkit-scroll" id="cloneResults" style="max-height:210px; overflow-y:auto; padding:5px;">
-            <div style="padding:12px; text-align:center; font:400 14px 'IBM Plex Sans'; color:#b0b7c3;">Search a requestNo to list source proposals</div>
-          </div>
-        </div>
-        <div id="cloneSrcWarn" style="display:none; font:400 14px 'IBM Plex Sans'; color:#a16207; margin-top:6px;"></div>
+      <!-- Clone mode (shown once a source proposal is selected) -->
+      <div id="cloneModeBox" hidden style="margin-top:16px;">
+        <div class="section-title">Clone mode</div>
+        <div id="cloneModes" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <div id="clonePlock" hidden style="font:400 13px 'IBM Plex Sans'; color:#a16207; background:rgba(210,153,34,.10); border:1px solid rgba(210,153,34,.25); border-radius:7px; padding:6px 10px; margin-top:8px; line-height:1.4;">Type P keeps its RequestNo across months — only <b>New version</b> is allowed.</div>
+      </div>
 
-        <div id="cloneModeBox" hidden style="margin-top:16px;">
-          <div class="section-title">Clone mode</div>
-          <div id="cloneModes" style="display:flex; flex-direction:column; gap:8px;"></div>
-          <div id="clonePlock" hidden style="font:400 13px 'IBM Plex Sans'; color:#a16207; background:rgba(210,153,34,.10); border:1px solid rgba(210,153,34,.25); border-radius:7px; padding:6px 10px; margin-top:8px; line-height:1.4;">Type P keeps its RequestNo across months — only <b>New version</b> is allowed.</div>
-        </div>
-
-        <div id="cloneReqBox" hidden style="margin-top:16px;">
-          <div class="section-title">New RequestNo</div>
-          <input type="text" id="cloneNewReq" class="text-input" placeholder="empty = auto-generate (real format)" spellcheck="false">
-          <div style="font:400 13px 'IBM Plex Sans'; color:#98a2b3; margin-top:6px; line-height:1.4;">Empty = generate like the backend: {org}-{saleOffice}-{type}{yy}{running·5}.</div>
-        </div>
+      <div id="cloneReqBox" hidden style="margin-top:16px;">
+        <div class="section-title">New RequestNo</div>
+        <input type="text" id="cloneNewReq" class="text-input" placeholder="empty = auto-generate (real format)" spellcheck="false">
+        <div style="font:400 13px 'IBM Plex Sans'; color:#98a2b3; margin-top:6px; line-height:1.4;">Empty = generate like the backend: {org}-{saleOffice}-{type}{yy}{running·5}.</div>
       </div>
 
       <!-- People controls -->
@@ -377,7 +346,6 @@
     { key: 'new-version', label: 'New version', desc: 'same RequestNo · version auto = max + 1 · current month' },
     { key: 'new-proposal', label: 'New proposal', desc: 'new RequestNo · version 0 · current month + 1 — Type R / S only' },
   ];
-  const RECENT_KEY = 'sam-devkit-recent';
   let lastPayloadsRaw = {}; // {rebate,special,accum} raw column text — for the inspector's "view JSON" toggle
 
   // ---------- state ----------
@@ -386,19 +354,16 @@
     envs: [],            // [{name, apiBaseUrl}]
     action: 'approve-through',
     sapStatus: '__leave__',
-    cloneResults: [],
-    cloneSource: null,
+    pickerResults: [],
+    pickerMode: 'recent', // 'recent' | 'search' — which fetch to redo on reload/after a run
+    pickerLoaded: false,  // true after the first auto-load, so tab switches don't refetch
+    selectedProposal: null,
     cloneMode: 'new-version',
-    cloneRefreshReq: null,
     running: false,
     rawLog: [],
-    history: [],
-    executed: {},
-    filter: '',
   };
 
   // ---------- helpers ----------
-  const guidValid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test((v || '').trim());
   const fmtTime = () => { const d = new Date(), p = (n, l = 2) => String(n).padStart(l, '0'); return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + '.' + p(d.getMilliseconds(), 3); };
   const newContract = () => 'CN-' + new Date().getFullYear() + '-' + String(Math.floor(Math.random() * 900000) + 100000);
   const envDot = (name) => ENV_COLOR[name] || '#667085';
@@ -425,35 +390,11 @@
     return webUrl + '/approval/' + p.id + '?ref=' + ref;
   }
 
-  function fmtExecuted(ts) {
-    if (!ts) return '—';
-    const d = new Date(ts), mins = Math.floor((Date.now() - ts) / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return mins + 'm ago';
-    const hrs = Math.floor(mins / 60); if (hrs < 24) return hrs + 'h ago';
-    const days = Math.floor(hrs / 24); if (days < 7) return days + 'd ago';
-    const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return mo[d.getMonth()] + ' ' + d.getDate();
-  }
-
   function copyText(txt, btn) {
     try { navigator.clipboard.writeText(txt); } catch (e) { /* clipboard unavailable */ }
     const old = btn.textContent;
     btn.textContent = 'copied';
     setTimeout(() => { btn.textContent = old; }, 1300);
-  }
-
-  function loadRecent() {
-    try {
-      const p = JSON.parse(localStorage.getItem(RECENT_KEY) || '{}');
-      state.history = Array.isArray(p.history) ? p.history : [];
-      state.executed = p.executed && typeof p.executed === 'object' ? p.executed : {};
-    } catch (e) { state.history = []; state.executed = {}; }
-  }
-  function saveRecent(id) {
-    state.history = [id, ...state.history.filter((x) => x !== id)].slice(0, 20);
-    state.executed = { ...state.executed, [id]: Date.now() };
-    try { localStorage.setItem(RECENT_KEY, JSON.stringify({ history: state.history, executed: state.executed })); } catch (e) { /* quota */ }
   }
 
   // ---------- render: env pills ----------
@@ -473,7 +414,7 @@
       box.appendChild(btn);
     }
   }
-  function syncTop() { $('apiBaseUrl').textContent = apiUrlOf(state.env); renderRecent(); refreshFeVersion(); }
+  function syncTop() { $('apiBaseUrl').textContent = apiUrlOf(state.env); refreshFeVersion(); }
 
   // ---------- FE version chip ----------
   let feVersionSeq = 0;
@@ -529,91 +470,95 @@
     const ppl = state.action === 'people';
     const sapx = state.action === 'sap-inspect';
     const pf = state.action === 'preflight';
-    $('sapSection').hidden = !sap;
-    $('contractSection').hidden = !sap;
-    $('mockStagingSection').hidden = !sap;
-    $('proposalSection').hidden = clone || ppl || pf;
-    $('cloneSection').hidden = !clone;
-    $('xraySection').hidden = !xr;
+    const needsPicker = !ppl && !pf; // every module except People/Env Preflight needs a proposal
+    const hasSel = !!state.selectedProposal;
+
+    $('pickerSection').hidden = !needsPicker;
+    $('sapSection').hidden = !(sap && hasSel);
+    $('contractSection').hidden = !(sap && hasSel);
+    $('mockStagingSection').hidden = !(sap && hasSel);
+    $('cloneModeBox').hidden = !(clone && hasSel);
+    $('cloneReqBox').hidden = !(clone && hasSel);
+    if (!clone) $('cloneSrcWarn').style.display = 'none';
+    $('xraySection').hidden = !(xr && hasSel);
     $('peopleSection').hidden = !ppl;
     if (!insp && !xr && !ppl && !sapx && !pf) hideInspectReport();
     $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : ppl ? 'Run people lookup' : sapx ? 'Run SAP inspect' : pf ? 'Run preflight' : 'Run approve-through';
-    if (clone) syncCloneMode();
+    if (clone && hasSel) syncCloneMode();
+    if (needsPicker && !state.pickerLoaded && !state.running) loadPickerRecent();
     syncRun();
   }
 
-  // ---------- render: clone source + mode ----------
-  function renderCloneResults() {
-    const box = $('cloneResults');
+  // ---------- render: shared proposal picker (recent list or search results) ----------
+  function renderPickerResults() {
+    const box = $('pickerResults');
     box.innerHTML = '';
-    if (!state.cloneResults.length) {
-      box.innerHTML = '<div style="padding:12px; text-align:center; font:400 14px \'IBM Plex Sans\'; color:#b0b7c3;">No results — search a requestNo</div>';
-      syncCloneMode();
+    if (!state.pickerResults.length) {
+      const msg = state.pickerMode === 'search' ? 'No results — try another requestNo' : 'No proposals found';
+      box.innerHTML = '<div style="padding:12px; text-align:center; font:400 14px \'IBM Plex Sans\'; color:#b0b7c3;">' + msg + '</div>';
+      syncAction();
       return;
     }
     const webUrl = webUrlOf(state.env);
-    for (const p of state.cloneResults) {
-      const active = state.cloneSource && state.cloneSource.id === p.id;
+    for (const p of state.pickerResults) {
+      const active = state.selectedProposal && state.selectedProposal.id === p.id;
       const row = document.createElement('div');
-      row.style.cssText = 'display:grid; grid-template-columns:1fr 76px; gap:6px; align-items:center; border-radius:6px;'
+      row.style.cssText = 'display:grid; grid-template-columns:1fr 32px; gap:6px; align-items:center; border-radius:6px;'
         + (active ? ' background:color-mix(in srgb, var(--accent) 9%, #fff);' : '');
       const statusLabel = PROPOSAL_STATUS[p.status] || String(p.status);
       const gc = GROUP_COLOR[p.groupId] || { fg: '#667085', bg: '#f1f3f5' };
-      const sapDot = p.sapStatus === 'success' ? '<span class="dot" style="background:#3fb950; margin:0 auto;"></span>'
-        : p.sapStatus === 'fail' ? '<span class="dot" style="background:#f85149; margin:0 auto;"></span>'
-        : '<span style="font:400 12.5px \'IBM Plex Mono\',monospace; color:#c5cbd4; text-align:center;">—</span>';
 
-      // select area — RequestNo → SAP (same pattern as the recent list: button + action cells as siblings)
       const sel = document.createElement('button');
       sel.type = 'button';
-      sel.style.cssText = 'display:grid; grid-template-columns:1fr 36px 32px 74px 32px; gap:6px; align-items:center; min-width:0; text-align:left; padding:8px 8px; background:none; border-radius:6px;';
+      sel.style.cssText = 'display:grid; grid-template-columns:92px 1fr 40px 32px 74px; gap:6px; align-items:center; min-width:0; text-align:left; padding:8px 8px; background:none; border-radius:6px;';
       sel.innerHTML =
-        '<span title="' + p.id + '" style="font:' + (active ? '500' : '400') + ' 14px \'IBM Plex Mono\',monospace; color:' + (active ? 'var(--accent)' : '#475467') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + p.requestNo + '</span>'
+        '<span title="' + p.id + '" style="font:400 13px \'IBM Plex Mono\',monospace; color:#98a2b3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + p.id.slice(0, 8) + '…' + p.id.slice(-4) + '</span>'
+        + '<span style="font:' + (active ? '500' : '400') + ' 14px \'IBM Plex Mono\',monospace; color:' + (active ? 'var(--accent)' : '#475467') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + p.requestNo + '</span>'
         + '<span style="font:400 13px \'IBM Plex Mono\',monospace; color:#98a2b3;">v' + p.version + '</span>'
         + '<span style="font:600 12px \'IBM Plex Mono\',monospace; padding:3px 0; border-radius:5px; text-align:center; color:' + gc.fg + '; background:' + gc.bg + ';">' + (GROUP_LETTER[p.groupId] || '?') + '</span>'
-        + '<span style="font:400 12.5px \'IBM Plex Sans\'; white-space:nowrap; color:' + (statusLabel === 'Approved' ? '#15803d' : '#98a2b3') + ';">' + statusLabel + '</span>'
-        + sapDot;
+        + '<span style="font:400 12.5px \'IBM Plex Sans\'; white-space:nowrap; color:' + (statusLabel === 'Approved' ? '#15803d' : '#98a2b3') + ';">' + statusLabel + '</span>';
       sel.onclick = () => {
-        state.cloneSource = p;
-        if (p.groupId === 1) state.cloneMode = 'new-version';
-        renderCloneResults();
-        syncRun();
+        state.selectedProposal = p;
+        if (state.action === 'clone' && p.groupId === 1) state.cloneMode = 'new-version';
+        renderPickerResults();
+        syncAction();
       };
       row.appendChild(sel);
 
-      // action cell: copy id + open in web
+      // action cell: copy id + open in web — only rendered for the selected row
       const act = document.createElement('div');
       act.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:2px;';
-      const copyBtn = document.createElement('button');
-      copyBtn.type = 'button';
-      copyBtn.className = 'recent-view';
-      copyBtn.title = 'Copy proposal id';
-      copyBtn.textContent = '⧉';
-      copyBtn.onclick = () => {
-        try { navigator.clipboard.writeText(p.id); } catch (e) { /* clipboard unavailable */ }
-        copyBtn.textContent = '✓';
-        setTimeout(() => { copyBtn.textContent = '⧉'; }, 1300);
-      };
-      act.appendChild(copyBtn);
-      if (webUrl) {
-        const a = document.createElement('a');
-        a.className = 'recent-view';
-        a.href = proposalWebUrl(p, webUrl);
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.title = p.status === 0 || p.status === 1 ? 'Open draft in edit wizard' : 'Open approval detail';
-        a.textContent = '↗';
-        act.appendChild(a);
-      } else {
-        act.appendChild(document.createElement('span'));
+      if (active) {
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'recent-view';
+        copyBtn.title = 'Copy proposal id';
+        copyBtn.textContent = '⧉';
+        copyBtn.onclick = (e) => {
+          e.stopPropagation();
+          try { navigator.clipboard.writeText(p.id); } catch (err) { /* clipboard unavailable */ }
+          copyBtn.textContent = '✓';
+          setTimeout(() => { copyBtn.textContent = '⧉'; }, 1300);
+        };
+        act.appendChild(copyBtn);
+        if (webUrl) {
+          const a = document.createElement('a');
+          a.className = 'recent-view';
+          a.href = proposalWebUrl(p, webUrl);
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.title = p.status === 0 || p.status === 1 ? 'Open draft in edit wizard' : 'Open approval detail';
+          a.textContent = '↗';
+          act.appendChild(a);
+        }
       }
       row.appendChild(act);
       box.appendChild(row);
     }
-    syncCloneMode();
+    syncAction();
   }
   function syncCloneMode() {
-    const src = state.cloneSource;
+    const src = state.selectedProposal;
     const isP = !!src && src.groupId === 1;
     if (isP) state.cloneMode = 'new-version';
     $('cloneModeBox').hidden = !src;
@@ -647,12 +592,44 @@
     }
   }
 
-  async function doCloneSearch() {
-    const term = $('cloneSearch').value.trim();
+  async function loadPickerRecent() {
+    if (state.running) return;
+    state.pickerMode = 'recent';
+    state.selectedProposal = null;
+    $('pickerResults').innerHTML = '<div style="padding:12px; text-align:center; font:400 14px \'IBM Plex Sans\'; color:#b0b7c3;">Loading…</div>';
+    try {
+      const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: state.env, module: 'clone-recent' }) });
+      const text = await res.text();
+      for (const line of text.split('\n')) {
+        if (!line.trim()) continue;
+        if (line.startsWith('RESULT ')) {
+          try {
+            const r = JSON.parse(line.slice(7));
+            state.pickerResults = r.proposals || [];
+            renderPickerResults();
+          } catch (e) { appendLine('ERROR bad recent-list result: ' + e.message); }
+        } else {
+          appendLine(line);
+        }
+      }
+    } catch (e) {
+      appendLine('ERROR ' + e.message);
+      state.pickerResults = [];
+      renderPickerResults();
+    } finally {
+      state.pickerLoaded = true;
+      syncAction();
+    }
+  }
+
+  async function doPickerSearch() {
+    const term = $('pickerSearch').value.trim();
     if (term.length < 2 || state.running) return;
-    const btn = $('cloneSearchBtn');
+    const btn = $('pickerSearchBtn');
     btn.disabled = true;
     btn.textContent = '…';
+    state.pickerMode = 'search';
+    state.selectedProposal = null;
     try {
       const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: state.env, module: 'clone-search', requestNo: term }) });
       const text = await res.text();
@@ -661,9 +638,8 @@
         if (line.startsWith('RESULT ')) {
           try {
             const r = JSON.parse(line.slice(7));
-            state.cloneResults = r.proposals || [];
-            state.cloneSource = null;
-            renderCloneResults();
+            state.pickerResults = r.proposals || [];
+            renderPickerResults();
           } catch (e) { appendLine('ERROR bad search result: ' + e.message); }
         } else {
           appendLine(line);
@@ -674,7 +650,17 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'search';
-      syncRun();
+      syncAction();
+    }
+  }
+
+  // ---------- re-fetch the picker after a run, keeping the same row selected if still present ----------
+  async function refetchPickerAndReselect(id) {
+    if (state.pickerMode === 'search') await doPickerSearch();
+    else await loadPickerRecent();
+    if (id) {
+      const match = state.pickerResults.find((p) => p.id === id);
+      if (match) { state.selectedProposal = match; renderPickerResults(); }
     }
   }
 
@@ -698,80 +684,12 @@
     }
   }
 
-  // ---------- render: proposal validation + recent ----------
-  function syncProposal() {
-    const v = $('proposalId').value.trim();
-    const valid = guidValid(v);
-    const icon = $('proposalIcon');
-    icon.textContent = !v ? '' : valid ? '✓' : '✕';
-    icon.style.color = valid ? '#3fb950' : '#d92d20';
-    $('proposalError').style.display = v && !valid ? 'block' : 'none';
-    $('proposalId').style.borderColor = v && !valid ? '#f0a3a0' : '';
-    renderRecent();
-    syncRun();
-  }
-
-  function renderRecent() {
-    const box = $('recentList');
-    box.innerHTML = '';
-    const rf = state.filter.trim().toLowerCase();
-    const current = $('proposalId').value.trim();
-    const webUrl = webUrlOf(state.env);
-    const list = state.history.filter((id) => !rf || id.toLowerCase().includes(rf));
-    if (!list.length) {
-      box.innerHTML = '<div style="padding:12px; text-align:center; font:400 14px \'IBM Plex Sans\'; color:#b0b7c3;">' + (state.history.length ? 'No matching IDs' : 'No runs yet') + '</div>';
-      return;
-    }
-    for (const id of list) {
-      const active = id === current;
-      const row = document.createElement('div');
-      row.className = 'recent-row';
-      if (active) row.style.background = 'color-mix(in srgb, var(--accent) 9%, #fff)';
-
-      const idBtn = document.createElement('button');
-      idBtn.type = 'button';
-      idBtn.style.cssText = 'display:flex; align-items:center; gap:8px; min-width:0; text-align:left; padding:7px 9px;';
-      const dot = document.createElement('span');
-      dot.style.cssText = 'width:6px; height:6px; border-radius:50%; flex:none; background:' + (active ? 'var(--accent)' : '#d0d5dd') + ';';
-      const label = document.createElement('span');
-      label.style.cssText = 'font:400 14px \'IBM Plex Mono\',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:' + (active ? 'var(--accent)' : '#475467') + ';';
-      label.textContent = id.slice(0, 8) + '…' + id.slice(-4);
-      label.title = id;
-      idBtn.appendChild(dot);
-      idBtn.appendChild(label);
-      idBtn.onclick = () => { $('proposalId').value = id; syncProposal(); };
-      row.appendChild(idBtn);
-
-      const ts = state.executed[id];
-      const ex = document.createElement('span');
-      ex.style.cssText = 'font:400 13px \'IBM Plex Sans\'; white-space:nowrap; color:' + (ts ? '#475467' : '#c5cbd4') + ';';
-      ex.textContent = fmtExecuted(ts);
-      row.appendChild(ex);
-
-      if (webUrl) {
-        const a = document.createElement('a');
-        a.className = 'recent-view';
-        a.href = webUrl + '/request/' + id;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.title = 'Open proposal in web';
-        a.textContent = '↗';
-        row.appendChild(a);
-      } else {
-        row.appendChild(document.createElement('span'));
-      }
-      box.appendChild(row);
-    }
-  }
-
   // ---------- run gating ----------
   function canRun() {
     if (state.running) return false;
-    if (state.action === 'clone') return !!state.cloneSource;
     if (state.action === 'people') return $('peopleQuery').value.trim().length >= 2;
-    if (state.action === 'sap-inspect') return guidValid($('proposalId').value);
     if (state.action === 'preflight') return true;
-    if (!guidValid($('proposalId').value)) return false;
+    if (!state.selectedProposal) return false;
     if (state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim() && !$('mockStaging').checked) return false;
     return true;
   }
@@ -997,9 +915,6 @@
       $('jobLabel').textContent = 'newId';
       $('jobShort').textContent = obj.newId.slice(0, 12) + '…' + obj.newId.slice(-4);
       $('copyJob').onclick = () => copyText(obj.newId, $('copyJob'));
-      saveRecent(obj.newId); // jump-off point for approve-through on the fresh draft
-      renderRecent();
-      state.cloneRefreshReq = obj.requestNo; // auto refetch the list once the stream closes
     } else if (obj && Array.isArray(obj.steps)) {
       // approve-through: {finalStatus, steps:[{role,action,status}], cdrJobId}
       label = PROPOSAL_STATUS[obj.finalStatus] || 'Status ' + obj.finalStatus;
@@ -1595,10 +1510,10 @@
   // ---------- run ----------
   async function run() {
     if (!canRun()) return;
-    const proposalId = $('proposalId').value.trim();
+    const proposalId = state.selectedProposal ? state.selectedProposal.id : '';
     let body;
     if (state.action === 'clone') {
-      body = { env: state.env, module: 'clone-proposal', sourceId: state.cloneSource.id, mode: state.cloneMode };
+      body = { env: state.env, module: 'clone-proposal', sourceId: proposalId, mode: state.cloneMode };
       const rn = $('cloneNewReq').value.trim();
       if (state.cloneMode === 'new-proposal' && rn) body.newRequestNo = rn;
     } else if (state.action === 'sap-fixup') {
@@ -1630,11 +1545,9 @@
       body = { env: state.env, proposalId, module: 'approve' };
     }
 
+    const keepId = state.selectedProposal ? state.selectedProposal.id : null;
     state.running = true;
-    state.cloneRefreshReq = null;
-    if (state.action !== 'clone') saveRecent(proposalId);
     clearConsole();
-    renderRecent();
     $('runSpinner').style.display = 'inline-block';
     $('runLabel').textContent = 'Running…';
     syncRun();
@@ -1658,14 +1571,8 @@
     } finally {
       state.running = false;
       $('runSpinner').style.display = 'none';
+      await refetchPickerAndReselect(keepId);
       syncAction(); // restores run label + gating
-      renderRecent();
-      if (state.cloneRefreshReq) {
-        // clone succeeded — refresh the source list on the new requestNo so the fresh Draft shows up
-        $('cloneSearch').value = state.cloneRefreshReq;
-        state.cloneRefreshReq = null;
-        doCloneSearch();
-      }
     }
   }
   function handleLine(line) {
@@ -1687,13 +1594,12 @@
   }
 
   // ---------- wire up ----------
-  $('proposalId').addEventListener('input', syncProposal);
-  $('recentFilter').addEventListener('input', (e) => { state.filter = e.target.value; renderRecent(); });
   $('contractNo').addEventListener('input', syncRun);
   $('mockStaging').addEventListener('change', syncRun);
   $('regenContract').onclick = () => { $('contractNo').value = newContract(); syncRun(); };
-  $('cloneSearchBtn').onclick = doCloneSearch;
-  $('cloneSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') doCloneSearch(); });
+  $('pickerSearchBtn').onclick = doPickerSearch;
+  $('pickerSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') doPickerSearch(); });
+  $('pickerReloadBtn').onclick = loadPickerRecent;
   $('copyUrl').onclick = () => copyText(apiUrlOf(state.env), $('copyUrl'));
   $('copyConsole').onclick = () => copyText(state.rawLog.join('\n'), $('copyConsole'));
   $('clearConsole').onclick = clearConsole;
@@ -1805,11 +1711,9 @@
   })();
 
   // ---------- init ----------
-  loadRecent();
   renderActions();
   renderSapPills();
   syncAction();
-  syncProposal();
   fetch('/config').then((r) => r.json()).then((c) => {
     state.envs = c.environments || [];
     state.env = c.defaultEnv || (state.envs[0] && state.envs[0].name) || '';
