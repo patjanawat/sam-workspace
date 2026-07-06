@@ -83,6 +83,7 @@ async function handleRun(req, res) {
         proposalId: input.proposalId,
         sapStatus: input.sapStatus,
         contractNo: input.contractNo,
+        mockStaging: Boolean(input.mockStaging),
         log,
       });
       res.write('RESULT ' + JSON.stringify(r) + '\n');

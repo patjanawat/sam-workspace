@@ -109,6 +109,23 @@ or seed a contract number.
   and not explicitly listed is still refused, so production stays protected.
 - Status and contract are independent writes across two DBs — partial success is possible and reported per step.
 
+**Mock staging row** (checkbox, run before status/contract)
+- For QA/dev environments that can't reach real SAP (`EnvironmentHelper.IsClient` false → `SapSyncServiceFallback`
+  in the BE, or a real-code-path bug that left `SAPStatus=success` with 0 staging rows — see `sap-inspect`).
+- `MERGE`s one staging row per line item into the table matching the proposal's type (`CreateContract` /
+  `CreateDiscount` / `ChangeContract`) using the **same source join** as `SapGenerateService.cs` — real
+  `ProposalProductTypeP`/`RS` + `ProposalCustomer` + `Proposal` data, so every field except the SAP outcome is valid.
+- Only `SAP_RETURN` is mocked — stamped straight to that flow's success value (`C`/`0`/`S`), no RFC call ever made.
+  `SAP_MESSAGE` is stamped `"MOCKED by sam-devkit -- no real SAP call"` so the row is identifiable later.
+- **Safe to re-run**: matched by the same natural key the real generate SQL uses (proposal + soldto/material/
+  valid-from/valid-to, or contract no for `ChangeContract`). If no row exists yet → insert. If a row exists **and
+  its `SAP_MESSAGE` already carries the mock marker** → refresh it (new `SAP_RETURN`/timestamp). If a row exists
+  from a **real** SAP attempt (no marker — real success, real failure, real pending) → left untouched, reported as
+  0 rows affected. A real SAP error is never silently papered over by a QA mock.
+- 0 rows affected can also mean the source data (`ProposalProductTypeP`/`RS` + `ProposalCustomer`) is missing for
+  that proposal — check `sap-inspect` / `xray-overview` first if unsure which case you hit.
+- Does not implement contract **amendment** paths (Type P `PreviousId` set) — new proposals only.
+
 ## Clone → Draft (direct DB — dev only)
 
 Copy an existing proposal into a new **Draft** — including all detail rows — without

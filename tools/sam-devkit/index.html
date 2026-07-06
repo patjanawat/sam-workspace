@@ -180,7 +180,18 @@
           <button type="button" id="regenContract" class="link-btn">↻ regenerate</button>
         </div>
         <input type="text" id="contractNo" class="text-input" placeholder="CN-2026-004821 (empty = leave contract untouched)" spellcheck="false">
-        <div id="sapHint" style="display:none; font:400 14px 'IBM Plex Sans'; color:#98a2b3; margin-top:6px;">Pick a SAP status or fill a contract number — “leave unchanged” with no contract does nothing.</div>
+        <div id="sapHint" style="display:none; font:400 14px 'IBM Plex Sans'; color:#98a2b3; margin-top:6px;">Pick a SAP status, fill a contract number, or check mock staging below — “leave unchanged” with nothing else does nothing.</div>
+      </div>
+
+      <!-- Mock staging row (QA/dev only — no real SAP call) -->
+      <div id="mockStagingSection" hidden style="margin-top:14px;">
+        <label style="display:flex; align-items:flex-start; gap:9px; cursor:pointer;">
+          <input type="checkbox" id="mockStaging" style="margin-top:3px;">
+          <span>
+            <span style="display:block; font:600 14px 'IBM Plex Sans'; color:#1a1d23;">Mock staging row</span>
+            <span style="display:block; font:400 13px 'IBM Plex Sans'; color:#98a2b3; margin-top:2px;">Insert a valid staging row (real product/customer data) stamped SAP_RETURN=success — no real SAP call. Use when the real generate step never ran and SAPStatus went "success" with 0 staging rows.</span>
+          </span>
+        </label>
       </div>
 
       <!-- Clone: source search -->
@@ -520,6 +531,7 @@
     const pf = state.action === 'preflight';
     $('sapSection').hidden = !sap;
     $('contractSection').hidden = !sap;
+    $('mockStagingSection').hidden = !sap;
     $('proposalSection').hidden = clone || ppl || pf;
     $('cloneSection').hidden = !clone;
     $('xraySection').hidden = !xr;
@@ -760,7 +772,7 @@
     if (state.action === 'sap-inspect') return guidValid($('proposalId').value);
     if (state.action === 'preflight') return true;
     if (!guidValid($('proposalId').value)) return false;
-    if (state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim()) return false;
+    if (state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim() && !$('mockStaging').checked) return false;
     return true;
   }
   function syncRun() {
@@ -768,7 +780,7 @@
     const btn = $('runBtn');
     btn.disabled = !ok;
     btn.className = 'run-btn' + (ok ? ' ready' : '');
-    const showHint = state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim();
+    const showHint = state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim() && !$('mockStaging').checked;
     $('sapHint').style.display = showHint ? 'block' : 'none';
   }
 
@@ -1004,16 +1016,17 @@
         $('copyJob').onclick = () => copyText(String(obj.cdrJobId), $('copyJob'));
       }
     } else if (obj && obj.status && obj.contract && obj.payload) {
-      // sap-fixup: {status:{applied,rows}, contract:{applied,table,rows,skippedReason}, payload:{applied,rows,updated,skippedReason}}
-      const secs = [['status', obj.status], ['contract', obj.contract], ['payload', obj.payload]];
+      // sap-fixup: {mockStaging:{applied,rowsInserted,table,skippedReason}, status:{applied,rows}, contract:{applied,table,rows,skippedReason}, payload:{applied,rows,updated,skippedReason}}
+      const secs = [['mockStaging', obj.mockStaging], ['status', obj.status], ['contract', obj.contract], ['payload', obj.payload]].filter(([, s]) => s);
       const anyError = secs.some(([, s]) => s.error);
       const anyApplied = secs.some(([, s]) => s.applied);
       label = anyError ? 'Failed' : anyApplied ? 'Applied' : 'Skipped';
       color = anyError ? C.red : anyApplied ? C.green : C.amber;
       for (const [name, s] of secs) {
         let txt, c;
+        const n = s.rowsInserted !== undefined ? s.rowsInserted : s.rows;
         if (s.error) { txt = name + ': ' + s.error; c = '#b91c1c'; }
-        else if (s.applied) { txt = name + ': ' + s.rows + ' row' + (s.rows === 1 ? '' : 's') + (s.updated ? ', ' + s.updated + ' product' + (s.updated === 1 ? '' : 's') : ''); c = '#15803d'; }
+        else if (s.applied) { txt = name + ': ' + n + ' row' + (n === 1 ? '' : 's') + (s.updated ? ', ' + s.updated + ' product' + (s.updated === 1 ? '' : 's') : '') + (s.table ? ' (' + s.table + ')' : ''); c = '#15803d'; }
         else { txt = name + ': ' + (s.skippedReason || 'skipped'); c = '#a16207'; }
         steps.appendChild(stepChip('sap', txt, c));
       }
@@ -1593,6 +1606,7 @@
       if (state.sapStatus !== '__leave__') body.sapStatus = state.sapStatus;
       const cn = $('contractNo').value.trim();
       if (cn) body.contractNo = cn;
+      if ($('mockStaging').checked) body.mockStaging = true;
     } else if (state.action === 'inspect') {
       body = { env: state.env, proposalId, module: 'inspect' };
       hideInspectReport();
@@ -1676,6 +1690,7 @@
   $('proposalId').addEventListener('input', syncProposal);
   $('recentFilter').addEventListener('input', (e) => { state.filter = e.target.value; renderRecent(); });
   $('contractNo').addEventListener('input', syncRun);
+  $('mockStaging').addEventListener('change', syncRun);
   $('regenContract').onclick = () => { $('contractNo').value = newContract(); syncRun(); };
   $('cloneSearchBtn').onclick = doCloneSearch;
   $('cloneSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') doCloneSearch(); });
