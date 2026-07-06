@@ -63,6 +63,19 @@ Hosts not covered by an env profile (or its explicit `allowedHosts`) are still r
 **Backward compatible:** a flat config — `{ apiBaseUrl, roles, db, allowedHosts }` with no
 `environments` key — still works exactly as before, as an implicit single `"default"` environment.
 
+## Proposal picker
+
+Every module except **People** and **Env Preflight** shares one proposal picker:
+
+- Opens auto-loaded with the **10 most recently created proposals** (`CreatedDateUTC DESC`).
+- **Search** a `RequestNo` (min 2 chars) to look up a specific proposal instead; **reload**
+  returns to the top-10 view.
+- Row actions (copy id / open in the web app) and each module's own controls — Clone's mode
+  picker, SAP fixup's status/contract fields, X-ray's screen/role/verify controls — only appear
+  once you **click a row** to select it.
+- After running any module, the list **refetches** and re-selects the same row if it's still
+  present, so you immediately see its updated state (new Draft, new SAPStatus, etc.).
+
 ## Prerequisites (dev env)
 - Role accounts for `srp, sam, sdm, pte, cdr` that log in.
 - **Approve-through:** the `sam` account must be allowed to see the proposal — it must own the
@@ -159,10 +172,10 @@ copied.
 - The DB guard is the same as SAP fixup (`localhost` / `db.allowedServers` only).
 - Direct DB insert skips the CustomerGroup-availability check (1 Draft/Pending per group per
   period) — acceptable for a dev tool, but the FE may show overlapping drafts.
-- The new proposal id lands in the **recent list**, so you can immediately run Approve-through on it.
-- Each search row has an **Action** column — copy the proposal id, or open the proposal in the web app.
-- After a successful clone the search box switches to the result's `RequestNo` and the list
-  **auto-refreshes**, so the fresh Draft shows up immediately (both modes).
+- Clone uses the shared proposal picker (see above) — pick the source row there, then the mode
+  and RequestNo controls appear below it.
+- After a successful clone, the picker refetches and the fresh Draft shows up immediately, still
+  selected, so you can switch straight to Approve-through on it.
 
 ## Inspector (direct DB — read-only)
 
