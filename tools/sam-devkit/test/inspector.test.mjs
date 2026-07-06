@@ -58,6 +58,33 @@ test('summarizePayload tolerates page payload already an object (not double-enco
   assert.deepEqual(s.productIds, ['P7']);
 });
 
+// Type R/S real shape: no wrapper at all — the column IS the bare array of
+// rate sections, productIds nested under rows[].values[]. No contract concept.
+test('summarizePayload extracts productIds from a bare Type R/S section array (no pages wrapper)', () => {
+  const doc = [
+    { section: 'discountHeader', meta: {}, rows: [{ range: null, values: [{ productId: '100048', old: null, new: 100 }] }] },
+    { section: 'normalRebate', meta: {}, rows: [{ range: null, values: [{ productId: '100048', old: null, new: 40 }] }] },
+    { section: 'specialRebate', meta: {}, rows: [] },
+  ];
+  const s = summarizePayload(JSON.stringify(doc));
+  assert.equal(s.activePages, 1);
+  assert.deepEqual(s.productIds, ['100048']);
+  assert.deepEqual(s.contracts, []);
+});
+
+// Same shape but wrapped in the schemaVersion:2 multi-page envelope (payload
+// re-saved through the app after an edit), each page.payload double-encoded.
+test('summarizePayload extracts productIds from Type R/S sections wrapped in pages[].payload', () => {
+  const sections = [
+    { section: 'normalRebate', rows: [{ values: [{ productId: 'P1' }, { productId: 'P2' }] }] },
+  ];
+  const doc = { schemaVersion: 2, pages: [{ pageNumber: 1, payload: JSON.stringify(sections) }] };
+  const s = summarizePayload(JSON.stringify(doc));
+  assert.equal(s.activePages, 1);
+  assert.deepEqual(s.productIds, ['P1', 'P2']);
+  assert.deepEqual(s.contracts, []);
+});
+
 // ---------------------------------------------------------------- lineage ---
 
 const L = (id, previousId, version, status = 3, requestNo = 'REQ-1') =>
@@ -399,7 +426,9 @@ test('inspectProposal wires everything: header, lineage, step, who, diagnosis, p
 
   assert.ok(r.diagnosis.find((c) => c.id === 'close-month').level === 'ok'); // 202607 not closed
   assert.equal(r.payloads.rebate.productIds[0], 'P100');
-  assert.equal(r.payloads.special, null);
+  assert.equal(r.payloads.rebate.raw, JSON.stringify({ schemaVersion: 2, pages: [{ payload: JSON.stringify({ products: [{ colId: 'col-1', productId: 'P100' }], values: {} }) }] }));
+  assert.equal(r.payloads.special.raw, '');
+  assert.equal(r.payloads.special.activePages, undefined);
   assert.equal(r.related.customers[0].code, 'C000112');
 });
 

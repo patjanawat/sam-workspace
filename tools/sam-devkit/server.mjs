@@ -18,11 +18,14 @@ import { runPreflight } from './lib/preflight.mjs';
 import permissionsSnapshot from './lib/permissions-snapshot.json' with { type: 'json' };
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
+import { fetchFeVersion } from './lib/fe-version.mjs';
+import pkg from './package.json' with { type: 'json' };
 
 // import.meta.url is empty in the bundled CJS (SEA) build — fall back to the exe dir.
 // HERE is only used by the dev (`node server.mjs`) file-read paths; SEA uses assets + execPath.
 const HERE = import.meta.url ? dirname(fileURLToPath(import.meta.url)) : dirname(process.execPath);
 const PORT = process.env.PORT || 8787;
+const VERSION = pkg.version;
 
 // When packaged as a single executable (SEA): index.html is an embedded asset and
 // config.json is read from beside the .exe. In dev (`node server.mjs`) both sit next to this file.
@@ -112,6 +115,16 @@ async function handleRun(req, res) {
     try {
       const db = loadDbConfig(cfg);
       const r = await inspectProposal({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'fe-version') {
+    try {
+      const r = await fetchFeVersion({ apiBaseUrl: cfg.apiBaseUrl, allowedHosts: cfg.allowedHosts });
       res.write('RESULT ' + JSON.stringify(r) + '\n');
     } catch (e) {
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
@@ -278,7 +291,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/config') {
       const raw = await readRawConfig();
-      return send(res, 200, listEnvironments(raw)); // env names + apiBaseUrls only — never passwords
+      return send(res, 200, { ...listEnvironments(raw), version: VERSION }); // env names + apiBaseUrls only — never passwords
     }
     if (req.method === 'POST' && url.pathname === '/run') {
       return await handleRun(req, res);
@@ -290,5 +303,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`sam-devkit on http://localhost:${PORT}`);
+  console.log(`sam-devkit v${VERSION} on http://localhost:${PORT}`);
 });

@@ -25,36 +25,59 @@ function thaiNow(now = () => Date.now()) {
 
 // ------------------------------------------------------------------ payload
 
-// Parse one page's payload — DOUBLE-ENCODED JSON string in the real data
-// (see json-contract.mjs); tolerate an already-decoded object.
-function readPage(page) {
-  if (!page || page.deleted === true) return null;
-  let pp = page.payload;
-  if (typeof pp === 'string') {
-    try { pp = JSON.parse(pp); } catch { return null; }
+// Resolve one page's content — DOUBLE-ENCODED JSON string in the real data
+// (see json-contract.mjs); tolerate an already-decoded object/array. `page`
+// is either a wrapper `{payload: ...}` (real shape) or, for legacy top-level
+// docs with no `pages` array, the content itself (flat object or bare array).
+function pageContentOf(page) {
+  if (page && typeof page === 'object' && 'payload' in page) {
+    let pp = page.payload;
+    if (typeof pp === 'string') {
+      try { pp = JSON.parse(pp); } catch { return null; }
+    }
+    return pp ?? null;
   }
-  if (!pp || Array.isArray(pp) || !Array.isArray(pp.products)) return null;
-  return pp;
+  return page ?? null;
 }
 
 // Summarize a rebate/special/accum payload column: schemaVersion, page counts,
 // unique productIds (active pages only), contract cell per product.
+//
+// Two payload shapes exist per page, keyed off groupId:
+// - Type P: { products:[{colId,productId}], values:{contract:{colId:{new}}} }
+//   — carries the SAP contract number per product.
+// - Type R/S: an array of rate sections, [{section, rows:[{values:[{productId,...}]}]}]
+//   — no contract concept; productIds live under rows[].values[].productId.
 export function summarizePayload(json) {
   if (!json || typeof json !== 'string') return null;
   let doc;
   try { doc = JSON.parse(json); } catch { return null; }
   if (!doc || typeof doc !== 'object') return null;
 
-  const pages = Array.isArray(doc.pages) ? doc.pages : [doc]; // flat = single page
+  const pages = Array.isArray(doc.pages) ? doc.pages : [doc]; // flat legacy = single page
   let activePages = 0;
   let deletedPages = 0;
   const productIds = [];
   const contracts = [];
   for (const page of pages) {
     if (page && page.deleted === true) { deletedPages++; continue; }
-    // page with a payload wrapper (real shape) or a flat page-payload itself
-    const pp = ('payload' in (page ?? {})) ? readPage(page) : (Array.isArray(page?.products) ? page : null);
+    const pp = pageContentOf(page);
     if (!pp) continue;
+
+    if (Array.isArray(pp)) {
+      activePages++;
+      for (const sec of pp) {
+        for (const row of sec?.rows ?? []) {
+          for (const v of row?.values ?? []) {
+            const pid = String(v?.productId ?? '').trim();
+            if (pid && !productIds.includes(pid)) productIds.push(pid);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (!Array.isArray(pp.products)) continue;
     activePages++;
     pp.products.forEach((prod, i) => {
       const pid = String(prod?.productId ?? '').trim();
@@ -351,9 +374,12 @@ export async function inspectProposal({ db, proposalId, readWide = runSqlWide, n
     today,
   });
 
-  const payloadOf = async (col) => summarizePayload(
-    await readWide({ ...sam, sql: `SET NOCOUNT ON; SELECT ${col} FROM dbo.ProposalDetail WHERE ProposalId='${id}';` }),
-  );
+  // `raw` always comes through (even when summarizePayload can't decode it) so
+  // the UI can offer a raw pretty-printed view regardless of decode success.
+  const payloadOf = async (col) => {
+    const raw = await readWide({ ...sam, sql: `SET NOCOUNT ON; SELECT ${col} FROM dbo.ProposalDetail WHERE ProposalId='${id}';` });
+    return { raw: raw ?? '', ...summarizePayload(raw) };
+  };
   const payloads = {
     rebate: await payloadOf('RebatePayload'),
     special: await payloadOf('SpecialPayload'),

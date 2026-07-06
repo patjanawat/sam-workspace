@@ -44,7 +44,13 @@
   .chip-btn:hover { color: var(--accent); border-color: var(--accent); }
 
   /* layout */
-  .main { flex: 1; display: grid; grid-template-columns: 520px 1fr; gap: 20px; padding: 20px 22px; min-height: 0; }
+  .main { flex: 1; display: grid; grid-template-columns: var(--left-w, 520px) 6px 1fr; gap: 20px; padding: 20px 22px; min-height: 0; }
+  .vsplit { cursor: col-resize; border-radius: 4px; background: transparent; position: relative; align-self: stretch; }
+  .vsplit::after { content: ''; position: absolute; left: 2px; top: 0; bottom: 0; width: 2px; border-radius: 2px; background: #e7e9ee; }
+  .vsplit:hover::after, .vsplit.dragging::after { background: #c7cbd4; }
+  .hsplit { cursor: row-resize; height: 6px; margin: -13px 0 -3px; position: relative; z-index: 2; }
+  .hsplit::after { content: ''; position: absolute; left: 0; right: 0; top: 2px; height: 2px; border-radius: 2px; background: #e7e9ee; }
+  .hsplit:hover::after, .hsplit.dragging::after { background: #c7cbd4; }
   .panel { background: #fff; border: 1px solid #e7e9ee; border-radius: 14px; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
   .section-title { font: 600 14px 'IBM Plex Sans'; letter-spacing: .06em; text-transform: uppercase; color: #98a2b3; margin-bottom: 11px; }
 
@@ -101,7 +107,10 @@
     <div style="display:flex; align-items:center; gap:11px;">
       <div class="logo-box"><span class="logo-glyph">&gt;_</span></div>
       <div style="display:flex; flex-direction:column; line-height:1.1;">
-        <span style="font:700 19px 'IBM Plex Sans'; letter-spacing:-0.01em;">sam-devkit</span>
+        <div style="display:flex; align-items:baseline; gap:7px;">
+          <span style="font:700 19px 'IBM Plex Sans'; letter-spacing:-0.01em;">sam-devkit</span>
+          <span id="devkitVersion" style="font:600 11px 'IBM Plex Mono',monospace; color:#98a2b3;"></span>
+        </div>
         <span style="font:500 13px 'IBM Plex Mono',monospace; color:#8a92a1; letter-spacing:0.02em; margin-top:2px;">approval workflow console</span>
       </div>
     </div>
@@ -111,6 +120,9 @@
       <span class="dot" style="background:#3fb950; box-shadow:0 0 0 3px rgba(63,185,80,.18);"></span>
       <span id="apiBaseUrl" style="font:400 15px 'IBM Plex Mono',monospace; color:#475467; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
       <button type="button" id="copyUrl" class="chip-btn" title="Copy API base URL">copy</button>
+    </div>
+    <div class="api-chip" id="feVersionChip" title="">
+      <span id="feVersionText" style="font:400 13.5px 'IBM Plex Mono',monospace; color:#98a2b3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
     </div>
   </header>
 
@@ -248,6 +260,8 @@
       </button>
     </section>
 
+    <div class="vsplit" id="vsplit" title="Drag to resize"></div>
+
     <!-- RIGHT: OUTPUT -->
     <section style="display:flex; flex-direction:column; gap:16px; min-height:0;">
 
@@ -273,6 +287,8 @@
           <div id="consoleLines" style="display:none; flex-direction:column;"></div>
         </div>
       </div>
+
+      <div class="hsplit" id="hsplit" title="Drag to resize" hidden></div>
 
       <!-- Result -->
       <div id="resultCard" class="result-card" style="display:none;">
@@ -351,6 +367,7 @@
     { key: 'new-proposal', label: 'New proposal', desc: 'new RequestNo · version 0 · current month + 1 — Type R / S only' },
   ];
   const RECENT_KEY = 'sam-devkit-recent';
+  let lastPayloadsRaw = {}; // {rebate,special,accum} raw column text — for the inspector's "view JSON" toggle
 
   // ---------- state ----------
   const state = {
@@ -445,7 +462,36 @@
       box.appendChild(btn);
     }
   }
-  function syncTop() { $('apiBaseUrl').textContent = apiUrlOf(state.env); renderRecent(); }
+  function syncTop() { $('apiBaseUrl').textContent = apiUrlOf(state.env); renderRecent(); refreshFeVersion(); }
+
+  // ---------- FE version chip ----------
+  let feVersionSeq = 0;
+  async function refreshFeVersion() {
+    const seq = ++feVersionSeq;
+    const chip = $('feVersionChip');
+    const text = $('feVersionText');
+    if (!state.env) { text.textContent = ''; chip.title = ''; return; }
+    text.textContent = 'FE checking…';
+    chip.title = '';
+    try {
+      const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: state.env, module: 'fe-version' }) });
+      const body = await res.text();
+      if (seq !== feVersionSeq) return; // env changed again while this was in flight
+      const line = body.split('\n').find((l) => l.startsWith('RESULT ') || l.startsWith('ERROR '));
+      if (line && line.startsWith('RESULT ')) {
+        const r = JSON.parse(line.slice(7));
+        text.textContent = 'FE ' + r.label;
+        chip.title = r.webUrl;
+      } else {
+        text.textContent = 'FE ?';
+        chip.title = (line || 'unknown error').replace(/^ERROR\s*/, '');
+      }
+    } catch (e) {
+      if (seq !== feVersionSeq) return;
+      text.textContent = 'FE ?';
+      chip.title = e.message;
+    }
+  }
 
   // ---------- render: action cards ----------
   function renderActions() {
@@ -777,6 +823,7 @@
     $('consoleEmpty').style.display = 'flex';
     $('logCount').textContent = '';
     $('resultCard').style.display = 'none';
+    syncConsoleSplit(false);
   }
 
   // ---------- result card ----------
@@ -799,6 +846,107 @@
     if (last < json.length) push(json.slice(last), '#57606a');
     return pre;
   }
+
+  // Recursively parse JSON-looking strings inside an already-parsed value —
+  // the DB payload columns nest JSON as a STRING one or more levels deep
+  // (see json-contract.mjs), so a single JSON.parse leaves those inner levels
+  // as one long escaped-quote blob. Un-escaping them fully is what makes the
+  // "view json" pretty-print actually readable.
+  function deepParseJson(value) {
+    if (typeof value === 'string') {
+      const t = value.trim();
+      if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
+        try { return deepParseJson(JSON.parse(value)); } catch { return value; }
+      }
+      return value;
+    }
+    if (Array.isArray(value)) return value.map(deepParseJson);
+    if (value && typeof value === 'object') {
+      const out = {};
+      for (const k of Object.keys(value)) out[k] = deepParseJson(value[k]);
+      return out;
+    }
+    return value;
+  }
+
+  // Same highlighter as jsonHighlight() but colored for a dark (#0d1117) box —
+  // jsonHighlight's palette is light-background-only and was unreadable here.
+  function jsonHighlightDark(obj) {
+    const json = JSON.stringify(obj, null, 2);
+    const re = /("(?:\\.|[^"\\])*"\s*:?|-?\d+\.?\d*|\btrue\b|\bfalse\b|\bnull\b)/g;
+    const pre = document.createElement('pre');
+    pre.style.cssText = "margin:0; font:400 13.5px 'IBM Plex Mono',monospace; line-height:1.6; white-space:pre-wrap; word-break:break-word; color:#c9d1d9;";
+    let last = 0, m;
+    const push = (txt, color) => { const s = document.createElement('span'); s.style.color = color; s.textContent = txt; pre.appendChild(s); };
+    while ((m = re.exec(json))) {
+      if (m.index > last) push(json.slice(last, m.index), '#8b949e');
+      const t = m[0];
+      let color = '#ffa657';
+      if (t[0] === '"') color = /:\s*$/.test(t) ? '#79c0ff' : '#a5d6ff';
+      else if (/^(true|false|null)$/.test(t)) color = '#d2a8ff';
+      push(t, color);
+      last = re.lastIndex;
+    }
+    if (last < json.length) push(json.slice(last), '#8b949e');
+    return pre;
+  }
+
+  // Toggle raw JSON view for a payload chip (rebate/special/accum). Single
+  // shared box below the chip row — reopening a different chip just swaps it.
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.pl-json-close')) {
+      const box = $('plJsonBox');
+      box.style.display = 'none';
+      box.dataset.current = '';
+      return;
+    }
+    const btn = e.target.closest('.pl-view-btn');
+    if (!btn) return;
+    const key = btn.getAttribute('data-pl');
+    const box = $('plJsonBox');
+    if (!box) return;
+    if (box.dataset.current === key && box.style.display !== 'none') {
+      box.style.display = 'none';
+      box.dataset.current = '';
+      return;
+    }
+    const raw = lastPayloadsRaw[key] || '';
+    box.innerHTML = '';
+
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex; align-items:center; gap:10px; margin-bottom:10px;';
+    const label = document.createElement('div');
+    label.style.cssText = "font:600 11px 'IBM Plex Mono',monospace; color:#8b949e; text-transform:uppercase; letter-spacing:.04em;";
+    label.textContent = key + ' payload';
+    bar.appendChild(label);
+    const spacer = document.createElement('div');
+    spacer.style.flex = '1';
+    bar.appendChild(spacer);
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.textContent = 'copy';
+    copyBtn.style.cssText = "border:none; background:transparent; color:#8b949e; font:500 11px 'IBM Plex Mono',monospace; cursor:pointer; padding:0;";
+    copyBtn.onclick = () => copyText(raw, copyBtn);
+    bar.appendChild(copyBtn);
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'pl-json-close';
+    closeBtn.textContent = 'close';
+    closeBtn.style.cssText = "border:none; background:transparent; color:#8b949e; font:500 11px 'IBM Plex Mono',monospace; cursor:pointer; padding:0;";
+    bar.appendChild(closeBtn);
+    box.appendChild(bar);
+
+    let node;
+    try { node = jsonHighlightDark(deepParseJson(JSON.parse(raw))); }
+    catch {
+      node = document.createElement('pre');
+      node.style.cssText = "margin:0; font:400 13.5px 'IBM Plex Mono',monospace; line-height:1.6; white-space:pre-wrap; word-break:break-word; color:#c9d1d9;";
+      node.textContent = raw || '(empty)';
+    }
+    box.appendChild(node);
+    box.style.display = 'block';
+    box.dataset.current = key;
+  });
 
   function stepChip(role, action, color) {
     const chip = document.createElement('div');
@@ -882,6 +1030,7 @@
     json.innerHTML = '';
     json.appendChild(jsonHighlight(obj));
     card.style.display = 'block';
+    syncConsoleSplit(true);
   }
 
 
@@ -891,7 +1040,7 @@
     if (!rep) return;
     rep.style.display = 'none';
     rep.innerHTML = '';
-    document.querySelector('.console-box').style.flex = '1';
+    syncConsoleSplit(false);
   }
   function escH(v) {
     return String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1009,16 +1158,21 @@
 
     // payloads
     const pl = r.payloads || {};
-    const plChip = (label, s) => s
-      ? '<div style="display:flex; align-items:center; gap:8px; padding:6px 11px; border-radius:9px; background:#fafbfc; border:1px solid #eef0f3; font:400 12.5px \'IBM Plex Mono\',monospace; color:#475467;">' + label + ' <b>v' + escH(s.schemaVersion) + ' · ' + s.activePages + ' page' + (s.activePages === 1 ? '' : 's') + (s.deletedPages ? ' (+' + s.deletedPages + ' deleted)' : '') + ' · ' + s.productIds.length + ' products</b></div>'
-      : '<div style="display:flex; align-items:center; gap:8px; padding:6px 11px; border-radius:9px; background:#fafbfc; border:1px solid #eef0f3; font:400 12.5px \'IBM Plex Mono\',monospace; color:#b0b7c3;">' + label + ' — none</div>';
+    const plViewBtn = (key, s) => (s && s.raw)
+      ? '<button type="button" class="pl-view-btn" data-pl="' + key + '" style="border:none; background:transparent; color:var(--accent); font:600 12px \'IBM Plex Mono\',monospace; cursor:pointer; padding:0 0 0 2px;" title="View raw JSON">{ }</button>'
+      : '';
+    const plChip = (label, s) => (s && s.activePages != null)
+      ? '<div style="display:flex; align-items:center; gap:6px; padding:6px 11px; border-radius:9px; background:#fafbfc; border:1px solid #eef0f3; font:400 12.5px \'IBM Plex Mono\',monospace; color:#475467;">' + label + ' <b>v' + escH(s.schemaVersion) + ' · ' + s.activePages + ' page' + (s.activePages === 1 ? '' : 's') + (s.deletedPages ? ' (+' + s.deletedPages + ' deleted)' : '') + ' · ' + s.productIds.length + ' products</b>' + plViewBtn(label, s) + '</div>'
+      : '<div style="display:flex; align-items:center; gap:6px; padding:6px 11px; border-radius:9px; background:#fafbfc; border:1px solid #eef0f3; font:400 12.5px \'IBM Plex Mono\',monospace; color:#b0b7c3;">' + label + ' — ' + ((s && s.raw) ? 'unparsed' : 'none') + plViewBtn(label, s) + '</div>';
     let plBody = '<div style="display:flex; flex-wrap:wrap; gap:8px;">' + plChip('rebate', pl.rebate) + plChip('special', pl.special) + plChip('accum', pl.accum) + '</div>';
     const contracts = (pl.rebate && pl.rebate.contracts) || [];
     if (contracts.length) {
       plBody += '<div style="margin-top:10px; font:400 12.5px \'IBM Plex Mono\',monospace; color:#475467;">contract values: '
         + contracts.map((c) => escH(c.productId) + '=' + (c.value ? '<b>' + escH(c.value) + '</b>' : '<span style="color:#b0b7c3;">empty</span>')).join(' · ') + '</div>';
     }
+    plBody += '<div id="plJsonBox" style="display:none; margin-top:10px; background:#0d1117; border-radius:10px; padding:12px 14px; max-height:360px; overflow:auto;"></div>';
     html += inspCard('Payloads · decoded (double-encoding handled)', plBody);
+    lastPayloadsRaw = { rebate: (pl.rebate || {}).raw || '', special: (pl.special || {}).raw || '', accum: (pl.accum || {}).raw || '' };
 
     // related
     const rel = r.related || {};
@@ -1036,7 +1190,7 @@
     const rep = $('inspectReport');
     rep.innerHTML = html;
     rep.style.display = 'flex';
-    document.querySelector('.console-box').style.flex = '0 0 170px';
+    syncConsoleSplit(true);
     $('resultCard').style.display = 'none';
     rep.scrollTop = 0;
   }
@@ -1077,7 +1231,7 @@
     html += '</div>';
     rep.innerHTML = html;
     rep.style.display = 'flex';
-    document.querySelector('.console-box').style.flex = '0 0 170px';
+    syncConsoleSplit(true);
     $('resultCard').style.display = 'none';
     rep.scrollTop = 0;
   }
@@ -1128,7 +1282,7 @@
 
     rep.innerHTML = html;
     rep.style.display = 'flex';
-    document.querySelector('.console-box').style.flex = '0 0 170px';
+    syncConsoleSplit(true);
     $('resultCard').style.display = 'none';
     rep.scrollTop = 0;
   }
@@ -1197,7 +1351,7 @@
 
     rep.innerHTML = html;
     rep.style.display = 'flex';
-    document.querySelector('.console-box').style.flex = '0 0 170px';
+    syncConsoleSplit(true);
     $('resultCard').style.display = 'none';
     rep.scrollTop = 0;
 
@@ -1244,7 +1398,7 @@
         + '</tr>').join('')
       + '</table></div></div>';
     rep.style.display = 'flex';
-    document.querySelector('.console-box').style.flex = '0 0 170px';
+    syncConsoleSplit(true);
     $('resultCard').style.display = 'none';
     rep.scrollTop = 0;
   }
@@ -1298,7 +1452,7 @@
 
     rep.innerHTML = html;
     rep.style.display = 'flex';
-    document.querySelector('.console-box').style.flex = '0 0 170px';
+    syncConsoleSplit(true);
     $('resultCard').style.display = 'none';
     rep.scrollTop = 0;
   }
@@ -1385,7 +1539,7 @@
 
     rep.innerHTML = html;
     rep.style.display = 'flex';
-    document.querySelector('.console-box').style.flex = '0 0 170px';
+    syncConsoleSplit(true);
     $('resultCard').style.display = 'none';
     rep.scrollTop = 0;
 
@@ -1557,6 +1711,84 @@
     $('xrayVerifyMark').style.color = state.xrayVerify ? 'var(--accent)' : '#98a2b3';
   };
 
+
+  // ---------- resizable panels ----------
+  const LEFT_W_KEY = 'devkit.leftWidth';
+  const CONSOLE_H_KEY = 'devkit.consoleHeight';
+  const LEFT_W_MIN = 360, LEFT_W_MAX = 820;
+  const CONSOLE_H_MIN = 80, CONSOLE_H_DEFAULT = 170;
+
+  function applyLeftWidth(px) {
+    document.documentElement.style.setProperty('--left-w', px + 'px');
+  }
+  (function initLeftWidth() {
+    const saved = Number(localStorage.getItem(LEFT_W_KEY));
+    if (saved >= LEFT_W_MIN && saved <= LEFT_W_MAX) applyLeftWidth(saved);
+  })();
+  (function wireVSplit() {
+    const handle = $('vsplit');
+    let dragging = false, startX = 0, startW = 0;
+    handle.addEventListener('mousedown', (e) => {
+      dragging = true; startX = e.clientX;
+      startW = document.querySelector('.main').firstElementChild.getBoundingClientRect().width;
+      handle.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const w = Math.min(LEFT_W_MAX, Math.max(LEFT_W_MIN, startW + (e.clientX - startX)));
+      applyLeftWidth(w);
+    });
+    window.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      handle.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      const w = document.querySelector('.main').firstElementChild.getBoundingClientRect().width;
+      localStorage.setItem(LEFT_W_KEY, String(Math.round(w)));
+    });
+  })();
+
+  // Console/report vertical split — only meaningful when something is showing
+  // below the console (Result card or an Inspector/X-ray report). With
+  // nothing below, console just fills the column (flex:1) and the handle hides.
+  function consoleHeight() {
+    const saved = Number(localStorage.getItem(CONSOLE_H_KEY));
+    return saved >= CONSOLE_H_MIN ? saved : CONSOLE_H_DEFAULT;
+  }
+  function syncConsoleSplit(hasBottomContent) {
+    const box = document.querySelector('.console-box');
+    $('hsplit').hidden = !hasBottomContent;
+    box.style.flex = hasBottomContent ? `0 0 ${consoleHeight()}px` : '1';
+  }
+  (function wireHSplit() {
+    const handle = $('hsplit');
+    let dragging = false, startY = 0, startH = 0;
+    handle.addEventListener('mousedown', (e) => {
+      dragging = true; startY = e.clientY;
+      startH = document.querySelector('.console-box').getBoundingClientRect().height;
+      handle.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const rightCol = handle.closest('section');
+      const maxH = rightCol.getBoundingClientRect().height - 160; // leave room below
+      const h = Math.min(Math.max(maxH, CONSOLE_H_MIN), Math.max(CONSOLE_H_MIN, startH + (e.clientY - startY)));
+      document.querySelector('.console-box').style.flex = `0 0 ${h}px`;
+    });
+    window.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      handle.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      const h = document.querySelector('.console-box').getBoundingClientRect().height;
+      localStorage.setItem(CONSOLE_H_KEY, String(Math.round(h)));
+    });
+  })();
+
   // ---------- init ----------
   loadRecent();
   renderActions();
@@ -1566,6 +1798,7 @@
   fetch('/config').then((r) => r.json()).then((c) => {
     state.envs = c.environments || [];
     state.env = c.defaultEnv || (state.envs[0] && state.envs[0].name) || '';
+    $('devkitVersion').textContent = c.version ? 'v' + c.version : '';
     renderEnvPills();
     syncTop();
   }).catch((e) => appendLine('ERROR failed to load /config: ' + e.message));
