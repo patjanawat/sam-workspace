@@ -24,7 +24,12 @@ async function invoke(args, exec) {
     return String(stdout).split('\n').map((l) => l.replace(/[ \t\r]+$/, '')).join('\n');
   } catch (e) {
     if (e.code === 'ENOENT') throw new Error('sqlcmd not found on PATH — install SQL Server command-line tools');
-    const detail = e.stderr ? String(e.stderr).trim() : e.message;
+    // sqlcmd sends most T-SQL error text (invalid object, permission denied, ...)
+    // to stdout, not stderr, unless -r is passed — check both before falling
+    // back to Node's generic "Command failed: <re-echoed command>" message.
+    const stderr = e.stderr ? String(e.stderr).trim() : '';
+    const stdout = e.stdout ? String(e.stdout).trim() : '';
+    const detail = stderr || stdout || e.message;
     const err = new Error(`sqlcmd failed: ${detail}`);
     err.code = e.code;
     throw err;
