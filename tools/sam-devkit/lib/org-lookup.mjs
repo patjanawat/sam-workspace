@@ -151,8 +151,8 @@ DECLARE @j NVARCHAR(MAX) = (
     CONVERT(NVARCHAR(33), u.LockoutEnd, 126) AS lockoutEnd,
     ISNULL(u.SaleOfficeCode,'') AS saleOfficeCode, ISNULL(so.SAL_OFF_EN_NM,'') AS saleOfficeName,
     ISNULL(u.SaleGroupCode,'') AS saleGroupCode
-  FROM dbo.AspNetUsers u
-  LEFT JOIN dbo.SaleOffice so ON so.SAL_OFF_CODE = u.SaleOfficeCode
+  FROM identity.AspNetUsers u
+  LEFT JOIN core.SaleOffice so ON so.SAL_OFF_CODE = u.SaleOfficeCode
   WHERE u.IsDelete = 0
   FOR JSON PATH);
 SELECT ISNULL(@j, '[]');`;
