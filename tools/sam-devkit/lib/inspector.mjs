@@ -308,7 +308,7 @@ function cgConflictSql(p) {
 
 function relatedSql(id) {
   return jsonObj(`SELECT
-    (SELECT c.CUS_CODE AS code, c.CUS_NAME AS name FROM dbo.ProposalCustomer c WHERE c.PROPOSAL_ID = '${id}' FOR JSON PATH) AS customers,
+    (SELECT c.SOLDTO_CODE AS code, c.SOLDTO_NAME AS name FROM dbo.ProposalCustomer c WHERE c.PROPOSAL_ID = '${id}' FOR JSON PATH) AS customers,
     (SELECT pp.PRODUCT_CODE AS code, COUNT(*) AS rows
        FROM dbo.ProposalProduct pp WHERE pp.PROPOSAL_ID = '${id}' GROUP BY pp.PRODUCT_CODE FOR JSON PATH) AS products,
     (SELECT f.FileName AS name, f.FilePath AS path FROM dbo.ProposalFile f WHERE f.ProposalId = '${id}' FOR JSON PATH) AS files`);
