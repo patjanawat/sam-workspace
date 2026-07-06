@@ -7,7 +7,7 @@ import { assertDevHost } from './lib/guard.mjs';
 import { loadConfig, loadDbConfig, listEnvironments } from './lib/config.mjs';
 import { setSapState } from './lib/sap-fixup.mjs';
 import { setProposalContract } from './lib/proposal-contract.mjs';
-import { searchProposals, cloneProposal } from './lib/clone-proposal.mjs';
+import { searchProposals, recentProposals, cloneProposal } from './lib/clone-proposal.mjs';
 import { inspectProposal } from './lib/inspector.mjs';
 import { xrayOverview } from './lib/xray-overview.mjs';
 import { xraySummary } from './lib/xray-summary.mjs';
@@ -236,6 +236,17 @@ async function handleRun(req, res) {
     try {
       const db = loadDbConfig(cfg);
       const r = await searchProposals({ db, requestNo: input.requestNo, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'clone-recent') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await recentProposals({ db, log });
       res.write('RESULT ' + JSON.stringify(r) + '\n');
     } catch (e) {
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
