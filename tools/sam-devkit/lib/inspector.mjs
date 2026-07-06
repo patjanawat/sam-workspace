@@ -250,8 +250,8 @@ function headerSql(id) {
     CONVERT(NVARCHAR(10), p.StartDate, 23) AS startDate, CONVERT(NVARCHAR(10), p.EndDate, 23) AS endDate,
     '0x' + CONVERT(NVARCHAR(20), CONVERT(BIGINT, p.RowVersion)) AS rowVersion
   FROM dbo.Proposal p
-  LEFT JOIN identity.AspNetUsers u ON u.Id = p.SaleId
-  LEFT JOIN identity.AspNetUsers la ON la.Id = p.LastApprovalId
+  LEFT JOIN [identity].AspNetUsers u ON u.Id = p.SaleId
+  LEFT JOIN [identity].AspNetUsers la ON la.Id = p.LastApprovalId
   LEFT JOIN core.SaleOffice so ON so.SAL_OFF_CODE = p.SaleOfficeCode
   WHERE p.Id = '${id}'`);
 }
@@ -281,8 +281,8 @@ function timelineSql(id) {
     h.Comment AS comment,
     CAST(h.IsDelegate AS INT) AS isDelegate, CAST(h.IsBypass AS INT) AS isBypass
   FROM dbo.ApprovalHistory h
-  LEFT JOIN identity.AspNetUsers u ON u.Id = h.ApproverId
-  LEFT JOIN identity.AspNetRoles r ON r.Id = h.ApproverRoleId
+  LEFT JOIN [identity].AspNetUsers u ON u.Id = h.ApproverId
+  LEFT JOIN [identity].AspNetRoles r ON r.Id = h.ApproverRoleId
   WHERE h.ProposalId = '${id}'
   ORDER BY h.ActionDateUTC`);
 }
@@ -290,7 +290,7 @@ function timelineSql(id) {
 const USERS_SQL = jsonArr(`SELECT CONVERT(NVARCHAR(36), Id) AS id, Name AS name, ISNULL(Email,'') AS email,
     RoleCode AS roleCode, CAST(IsActive AS INT) AS isActive,
     CASE WHEN LockoutEnd IS NOT NULL AND LockoutEnd > SYSUTCDATETIME() THEN 1 ELSE 0 END AS isLock
-  FROM identity.AspNetUsers WHERE IsDelete = 0 AND RoleCode IN ('sam','sdm','pte','cdr')`);
+  FROM [identity].AspNetUsers WHERE IsDelete = 0 AND RoleCode IN ('sam','sdm','pte','cdr')`);
 
 const DELEGATES_SQL = jsonArr(`SELECT CONVERT(NVARCHAR(36), UserId) AS userId,
     CONVERT(NVARCHAR(36), DelegateToId) AS delegateToId, ISNULL(DelegateToName,'') AS delegateToName,

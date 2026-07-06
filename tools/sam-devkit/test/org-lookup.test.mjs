@@ -117,7 +117,7 @@ const DB = { server: 'localhost', sam: { database: 'SamDb', user: 'sa', password
 
 test('orgLookup finds user by email and assembles card + chain + reports + delegates', async () => {
   const readWide = async ({ sql }) => {
-    if (/FROM identity\.AspNetUsers/.test(sql)) {
+    if (/FROM \[identity\]\.AspNetUsers/.test(sql)) {
       return JSON.stringify(USERS.map((u) => ({ ...u, isActive: 1, isLock: 0, saleOfficeCode: 'S001', saleOfficeName: 'BKK', saleGroupCode: 'G1', lockoutEnd: null })));
     }
     if (/FROM dbo\.UserDelegate/.test(sql)) {

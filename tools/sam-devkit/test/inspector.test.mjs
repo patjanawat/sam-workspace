@@ -359,7 +359,7 @@ function happyRoutes() {
     [/FROM dbo\.ApprovalHistory/, JSON.stringify([
       { roleCode: 'sam', roleName: 'Area Sales Manager', approver: 'Anucha P.', action: 3, actionDate: '2026-06-28T11:30:05', comment: null, isDelegate: false, isBypass: true },
     ])],
-    [/FROM identity\.AspNetUsers[\s\S]*RoleCode IN/, JSON.stringify([
+    [/FROM \[identity\]\.AspNetUsers[\s\S]*RoleCode IN/, JSON.stringify([
       { id: 'sdm1', name: 'Boonmee K.', email: 'boonmee@dev.sam', roleCode: 'sdm', isActive: true, isLock: false },
       { id: 'pte1', name: 'Pornthip S.', email: 'pornthip@dev.sam', roleCode: 'pte', isActive: true, isLock: false },
     ])],

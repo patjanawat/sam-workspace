@@ -76,7 +76,7 @@ function thaiPeriod(now = () => Date.now()) {
 const usersSql = (emails) => `SET NOCOUNT ON;
 DECLARE @j NVARCHAR(MAX) = (
   SELECT CONVERT(NVARCHAR(36), Id) AS id, Email AS email, CONVERT(NVARCHAR(36), ReportToId) AS reportToId
-  FROM identity.AspNetUsers WHERE Email IN (${emails.map((e) => `'${e.replace(/'/g, "''")}'`).join(',')})
+  FROM [identity].AspNetUsers WHERE Email IN (${emails.map((e) => `'${e.replace(/'/g, "''")}'`).join(',')})
   FOR JSON PATH);
 SELECT ISNULL(@j, '[]');`;
 
