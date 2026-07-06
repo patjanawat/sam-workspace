@@ -8,13 +8,24 @@ import { loadConfig, loadDbConfig, listEnvironments } from './lib/config.mjs';
 import { setSapState } from './lib/sap-fixup.mjs';
 import { setProposalContract } from './lib/proposal-contract.mjs';
 import { searchProposals, cloneProposal } from './lib/clone-proposal.mjs';
+import { inspectProposal } from './lib/inspector.mjs';
+import { xrayOverview } from './lib/xray-overview.mjs';
+import { xraySummary } from './lib/xray-summary.mjs';
+import { orgLookup, unlockUser, permissionMatrix } from './lib/org-lookup.mjs';
+import { xrayPmMax } from './lib/xray-pmmax.mjs';
+import { sapInspect } from './lib/sap-inspector.mjs';
+import { runPreflight } from './lib/preflight.mjs';
+import permissionsSnapshot from './lib/permissions-snapshot.json' with { type: 'json' };
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
+import { fetchFeVersion } from './lib/fe-version.mjs';
+import pkg from './package.json' with { type: 'json' };
 
 // import.meta.url is empty in the bundled CJS (SEA) build — fall back to the exe dir.
 // HERE is only used by the dev (`node server.mjs`) file-read paths; SEA uses assets + execPath.
 const HERE = import.meta.url ? dirname(fileURLToPath(import.meta.url)) : dirname(process.execPath);
 const PORT = process.env.PORT || 8787;
+const VERSION = pkg.version;
 
 // When packaged as a single executable (SEA): index.html is an embedded asset and
 // config.json is read from beside the .exe. In dev (`node server.mjs`) both sit next to this file.
@@ -100,6 +111,126 @@ async function handleRun(req, res) {
     return res.end();
   }
 
+  if (module === 'inspect') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await inspectProposal({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'fe-version') {
+    try {
+      const r = await fetchFeVersion({ apiBaseUrl: cfg.apiBaseUrl, allowedHosts: cfg.allowedHosts });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'org-lookup') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await orgLookup({ db, query: input.query, log });
+      r.matrix = permissionMatrix({ roleCode: r.user.roleCode, snapshot: permissionsSnapshot });
+      r.snapshotMeta = { generatedAt: permissionsSnapshot.generatedAt, sourceCommit: permissionsSnapshot.sourceCommit };
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'org-unlock') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await unlockUser({ db, userId: input.userId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'preflight') {
+    try {
+      const db = loadDbConfig(cfg);
+      assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
+      const client = createClient({ baseUrl: cfg.apiBaseUrl });
+      const login = async (role, acct) => client.login(acct);
+      const apiGet = async (path) => {
+        const { token } = await client.login(cfg.roles.srp);
+        return client.get(path, token);
+      };
+      const r = await runPreflight({ db, cfg, login, apiGet, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'sap-inspect') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await sapInspect({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'xray-pmmax') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await xrayPmMax({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'xray-summary') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await xraySummary({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'xray-overview') {
+    try {
+      const db = loadDbConfig(cfg);
+      let verifyFetch = null;
+      if (input.verify) {
+        assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
+        const client = createClient({ baseUrl: cfg.apiBaseUrl });
+        verifyFetch = async (track, id) => {
+          const acct = cfg.roles?.[track]; // sam-track → sam account; sdm-track → sdm account
+          if (!acct) throw new Error(`verify needs a "${track}" account in config.roles`);
+          const { token } = await client.login(acct);
+          return client.get(`/approval/${track}/${id}`, token);
+        };
+      }
+      const r = await xrayOverview({ db, proposalId: input.proposalId, role: input.role, verifyFetch, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
+    }
+    return res.end();
+  }
+
   if (module === 'clone-search') {
     try {
       const db = loadDbConfig(cfg);
@@ -160,7 +291,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/config') {
       const raw = await readRawConfig();
-      return send(res, 200, listEnvironments(raw)); // env names + apiBaseUrls only — never passwords
+      return send(res, 200, { ...listEnvironments(raw), version: VERSION }); // env names + apiBaseUrls only — never passwords
     }
     if (req.method === 'POST' && url.pathname === '/run') {
       return await handleRun(req, res);
@@ -172,5 +303,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`sam-devkit on http://localhost:${PORT}`);
+  console.log(`sam-devkit v${VERSION} on http://localhost:${PORT}`);
 });

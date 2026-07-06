@@ -1,0 +1,511 @@
+<meta charset="utf-8">
+<title>sam-devkit — Proposal Inspector mockup</title>
+<style>
+  :root{
+    --accent:#4f46e5; --bg:#f6f7f9; --card:#fff; --line:#e7e9ee; --line2:#eef0f3;
+    --ink:#1a1d23; --mut:#667085; --mut2:#98a2b3; --mut3:#b0b7c3;
+    --green:#3fb950; --amber:#d29922; --red:#f85149;
+    --sans:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --mono:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  input{font-family:var(--mono)}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;padding:0}
+  button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}50%{box-shadow:0 0 0 6px transparent}}
+  @keyframes fadein{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  ::selection{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+  .scroll::-webkit-scrollbar{width:10px}
+  .scroll::-webkit-scrollbar-thumb{background:#d0d5dd;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+
+  header{display:flex;align-items:center;gap:18px;padding:12px 22px;background:var(--card);border-bottom:1px solid var(--line);flex:none}
+  .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 40%,transparent);font:600 15px var(--mono);color:#fff}
+  .seg{display:flex;gap:3px;background:#f1f3f5;border:1px solid var(--line);border-radius:10px;padding:3px}
+  .seg button{display:flex;align-items:center;gap:7px;padding:5px 12px;border-radius:7px;font:600 12.5px var(--sans);color:var(--mut)}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10)}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+
+  main{flex:1;display:grid;grid-template-columns:384px 1fr;gap:20px;padding:20px 22px;min-height:0}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .sect{font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--mut2);margin-bottom:10px}
+
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .act{text-align:left;padding:11px 12px;border-radius:11px;background:#fff;border:1px solid var(--line);display:flex;flex-direction:column;gap:8px;transition:all .12s ease}
+  .act.on{background:color-mix(in srgb,var(--accent) 7%,#fff);border-color:var(--accent)}
+  .act .g{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 14px var(--mono);background:#f1f3f5;color:var(--mut)}
+  .act.on .g{background:var(--accent);color:#fff}
+  .act .t{font:600 12.5px var(--sans);color:var(--ink);line-height:1.2}
+  .act .d{font:400 10.5px var(--sans);color:#98a2b3;line-height:1.3}
+  .act.on .d{color:var(--mut)}
+
+  .inp{width:100%;padding:9px 12px;border-radius:9px;border:1px solid #e0e3ea;background:#fbfcfd;font-size:12.5px;color:var(--ink);outline:none;transition:all .12s ease}
+  .inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent);background:#fff}
+
+  .srcbox{border:1px solid var(--line2);border-radius:9px;background:#fafbfc;overflow:hidden;margin-top:7px}
+  .srchead{display:grid;grid-template-columns:1fr 30px 26px 70px;gap:6px;padding:8px 11px 6px;border-bottom:1px solid var(--line2)}
+  .srchead span{font:600 9.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--mut3)}
+  .srclist{max-height:190px;overflow-y:auto;padding:5px}
+  .srow{display:grid;grid-template-columns:1fr 30px 26px 70px;gap:6px;align-items:center;width:100%;text-align:left;border-radius:6px;padding:7px 6px;background:transparent}
+  .srow:hover{background:var(--line2)}
+  .srow.on{background:color-mix(in srgb,var(--accent) 9%,#fff)}
+  .srow .rq{font:400 11px var(--mono);color:#475467;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srow.on .rq{color:var(--accent);font-weight:500}
+  .srow .vv{font:400 10.5px var(--mono);color:var(--mut2)}
+  .tb{font:600 9.5px var(--mono);padding:2px 0;border-radius:5px;text-align:center}
+  .tb.R{color:#4f46e5;background:rgba(79,70,229,.10)}
+  .tb.S{color:#0d9488;background:rgba(13,148,136,.10)}
+  .tb.P{color:#b45309;background:rgba(180,83,9,.10)}
+  .stt{font:400 10px var(--sans);white-space:nowrap}
+
+  .quick{display:flex;flex-direction:column;gap:7px}
+  .qbtn{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:9px;border:1px solid var(--line);background:#fff;font:500 12px var(--sans);color:var(--ink);text-align:left;transition:all .12s ease}
+  .qbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .qbtn .k{font:500 12px var(--mono);color:var(--mut2);width:18px;text-align:center}
+  .qbtn:hover .k{color:var(--accent)}
+  .qnote{font:400 10.5px var(--sans);color:var(--mut3);line-height:1.4;margin-top:2px}
+
+  /* ---------- right report ---------- */
+  .report{overflow-y:auto;display:flex;flex-direction:column;gap:16px;min-height:0;padding-right:2px}
+  .report>*{flex:none}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 1px 2px rgba(16,24,40,.04);animation:fadein .22s ease}
+  .badge{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:20px;font:600 12px var(--sans)}
+  .b-green{color:#1a7f37;background:rgba(63,185,80,.14)}
+  .b-amber{color:#8b6a1f;background:rgba(210,153,34,.14)}
+  .b-red{color:#b62324;background:rgba(248,81,73,.12)}
+  .b-gray{color:#57606a;background:rgba(110,118,129,.12)}
+  .b-ind{color:var(--accent);background:rgba(79,70,229,.10)}
+  code.k{font:400 11.5px var(--mono);color:var(--ink);background:#f1f3f5;padding:3px 8px;border-radius:6px;border:1px solid var(--line)}
+  .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px 18px;margin-top:14px}
+  .kv>div{min-width:0}
+  .kv .l{font:500 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--mut3);margin-bottom:3px}
+  .kv .v{font:400 12px var(--mono);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kv .v small{font-size:10.5px;color:var(--mut2)}
+
+  .lineage{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .lin{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:9px;border:1px solid var(--line);background:#fafbfc;font:400 11.5px var(--mono);color:#475467}
+  .lin b{font-weight:600;color:var(--ink)}
+  .lin.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,#fff)}
+  .lin.cur b{color:var(--accent)}
+  .lin .ls{font:400 10px var(--sans)}
+  .larrow{color:var(--mut3);font:400 13px var(--mono)}
+
+  /* timeline rail — signature */
+  .rail{display:flex;flex-direction:column;margin-top:6px}
+  .step{display:grid;grid-template-columns:26px 1fr;gap:0 14px;position:relative}
+  .step .node{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:600 12px var(--mono);z-index:1;flex:none}
+  .step .stem{position:absolute;left:12px;top:26px;bottom:-2px;width:2px;background:var(--line)}
+  .step:last-child .stem{display:none}
+  .step .body{padding:2px 0 18px}
+  .n-ok{background:rgba(63,185,80,.15);color:#1a7f37;border:1.5px solid rgba(63,185,80,.5)}
+  .n-byp{background:rgba(210,153,34,.14);color:#8b6a1f;border:1.5px solid rgba(210,153,34,.5)}
+  .n-cur{background:var(--accent);color:#fff;border:1.5px solid var(--accent);animation:pulse 1.6s ease infinite}
+  .n-wait{background:#f1f3f5;color:var(--mut3);border:1.5px dashed #d0d5dd}
+  .n-err{background:rgba(248,81,73,.13);color:#b62324;border:1.5px solid rgba(248,81,73,.5)}
+  .step .rl{font:600 12.5px var(--sans);color:var(--ink)}
+  .step .rl .role{font:600 10px var(--mono);letter-spacing:.04em;color:var(--mut2);text-transform:uppercase;margin-right:7px}
+  .step .meta{font:400 11px var(--mono);color:var(--mut2);margin-top:2px}
+  .step .cmt{font:400 11px var(--sans);color:var(--mut);margin-top:4px;padding:6px 10px;background:#fafbfc;border:1px solid var(--line2);border-radius:7px;display:inline-block}
+  .flag{display:inline-flex;align-items:center;gap:5px;font:600 9.5px var(--mono);letter-spacing:.03em;padding:2px 8px;border-radius:5px;margin-left:8px;vertical-align:1px}
+  .f-del{color:#0d5cb6;background:rgba(88,166,255,.13)}
+  .f-byp{color:#8b6a1f;background:rgba(210,153,34,.14)}
+  .f-job{color:var(--accent);background:rgba(79,70,229,.10)}
+
+  /* who can approve */
+  .who{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+  .whorow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;border:1px solid var(--line2);background:#fafbfc}
+  .whorow.hot{border-color:color-mix(in srgb,var(--accent) 40%,var(--line2));background:color-mix(in srgb,var(--accent) 5%,#fff)}
+  .avatar{width:26px;height:26px;border-radius:50%;background:#e4e7ec;color:#667085;display:flex;align-items:center;justify-content:center;font:600 10.5px var(--sans);flex:none}
+  .whorow.hot .avatar{background:var(--accent);color:#fff}
+  .whorow .nm{font:600 12px var(--sans);color:var(--ink)}
+  .whorow .em{font:400 10.5px var(--mono);color:var(--mut2)}
+  .whorow .why{margin-left:auto;font:400 10.5px var(--sans);color:var(--mut);text-align:right;line-height:1.35}
+  .delarr{color:#0d5cb6;font-weight:600}
+
+  /* diagnosis — dark, terminal voice */
+  .diag{background:#0d1117;border:1px solid #1c2128;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(13,17,23,.14)}
+  .dhead{display:flex;align-items:center;gap:11px;padding:11px 15px;border-bottom:1px solid #21262d}
+  .dhead .t{font:600 12px var(--mono);color:#8b949e}
+  .dsum{font:400 11px var(--mono);color:#484f58}
+  .dbody{padding:10px 16px 14px}
+  .drow{display:grid;grid-template-columns:20px 210px 1fr;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid #161b22}
+  .drow:last-child{border-bottom:none}
+  .drow .ic{font:600 12px var(--mono);text-align:center}
+  .drow .ck{font:500 12px var(--mono);color:#c9d1d9}
+  .drow .dt{font:400 11.5px var(--mono);color:#8b949e;line-height:1.5}
+  .drow.ok .ic{color:#3fb950}
+  .drow.warn .ic{color:#d29922}
+  .drow.warn .dt{color:#d29922}
+  .drow.err .ic{color:#f85149}
+  .drow.err .ck{color:#ff7b72}
+  .drow.err .dt{color:#ffa198}
+
+  /* payload */
+  .tabs{display:flex;gap:3px;background:#f1f3f5;border:1px solid var(--line);border-radius:9px;padding:3px;width:fit-content}
+  .tabs button{padding:5px 13px;border-radius:6px;font:600 11.5px var(--sans);color:var(--mut)}
+  .tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10)}
+  .chipline{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .chip{display:flex;align-items:center;gap:8px;padding:6px 11px;border-radius:9px;background:#fafbfc;border:1px solid var(--line2);font:400 11.5px var(--mono);color:#475467}
+  .chip b{font-weight:600;color:var(--ink)}
+  .codebox{background:#0d1117;border:1px solid #1c2128;border-radius:10px;padding:13px 15px;overflow-x:auto;font:400 11.5px var(--mono);line-height:1.65;color:#c9d1d9;white-space:pre}
+  .cj-k{color:#79c0ff}.cj-s{color:#a5d6ff}.cj-n{color:#d2a8ff}.cj-p{color:#8b949e}.cj-c{color:#6e7681;font-style:italic}
+  .ctable{width:100%;border-collapse:collapse;margin-top:10px}
+  .ctable th{font:600 9.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--mut3);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line2)}
+  .ctable td{font:400 11.5px var(--mono);color:#475467;padding:7px 10px;border-bottom:1px solid var(--line2)}
+  .ctable td b{color:var(--ink);font-weight:600}
+  .ctable tr:last-child td{border-bottom:none}
+
+  .relgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .relbox{border:1px solid var(--line2);border-radius:10px;background:#fafbfc;padding:11px 13px}
+  .relbox .rc{font:700 17px var(--mono);color:var(--ink)}
+  .relbox .rt{font:500 10.5px var(--sans);color:var(--mut2);margin-top:1px}
+  .relbox ul{margin:8px 0 0;padding:0;list-style:none}
+  .relbox li{font:400 10.5px var(--mono);color:var(--mut);padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--mut3);text-align:center;font:400 12.5px var(--sans)}
+</style>
+
+<header>
+  <div style="display:flex;align-items:center;gap:11px">
+    <div class="logo">&gt;_</div>
+    <div style="display:flex;flex-direction:column;line-height:1.1">
+      <span style="font:700 15px var(--sans);letter-spacing:-0.01em">sam-devkit</span>
+      <span style="font:500 10.5px var(--mono);color:#8a92a1;letter-spacing:.02em;margin-top:2px">approval workflow console</span>
+    </div>
+  </div>
+  <div class="seg">
+    <button type="button"><span class="dot" style="background:#8b949e"></span>local</button>
+    <button type="button" class="on"><span class="dot" style="background:#3fb950"></span>develop</button>
+    <button type="button"><span class="dot" style="background:#d29922"></span>qa</button>
+  </div>
+  <div style="flex:1"></div>
+  <div style="display:flex;align-items:center;gap:9px;background:#f8f9fb;border:1px solid var(--line);border-radius:9px;padding:6px 12px">
+    <span class="dot" style="background:#3fb950;box-shadow:0 0 0 3px rgba(63,185,80,.18)"></span>
+    <span style="font:400 12px var(--mono);color:#475467">https://web-sam-dev.manaosoftware.com/api</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT -->
+  <section class="panel scroll">
+    <div>
+      <div class="sect">Action</div>
+      <div class="acts">
+        <button type="button" class="act"><span class="g">✓</span><span class="t">Approve-through</span><span class="d">Run all role approvals</span></button>
+        <button type="button" class="act"><span class="g">⟳</span><span class="t">SAP fixup</span><span class="d">Reconcile SAP sync state</span></button>
+        <button type="button" class="act"><span class="g">⧉</span><span class="t">Clone → Draft</span><span class="d">Copy proposal + details to a new Draft</span></button>
+        <button type="button" class="act on"><span class="g">⌕</span><span class="t">Inspector</span><span class="d">X-ray one proposal — read-only</span></button>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span class="sect" style="margin:0">Proposal</span>
+        <span id="srcCount" style="font:400 10.5px var(--mono);color:var(--mut3)"></span>
+      </div>
+      <input id="q" class="inp" type="text" placeholder="requestNo or proposal id… e.g. R2600" spellcheck="false">
+      <div class="srcbox">
+        <div class="srchead"><span>RequestNo</span><span>Ver</span><span>Type</span><span>Status</span></div>
+        <div id="rows" class="srclist scroll"></div>
+      </div>
+    </div>
+
+    <div id="quickSect" hidden>
+      <div class="sect">Quick actions</div>
+      <div class="quick">
+        <button type="button" class="qbtn"><span class="k">⧉</span>Copy proposal id</button>
+        <button type="button" class="qbtn"><span class="k">↗</span>Open in web app</button>
+        <button type="button" class="qbtn"><span class="k">✓</span>Send to Approve-through</button>
+        <button type="button" class="qbtn"><span class="k">⟳</span>Send to SAP fixup</button>
+        <button type="button" class="qbtn"><span class="k">⧉</span>Send to Clone → Draft</button>
+      </div>
+      <div class="qnote">Inspector is read-only. Writes happen in the other modules — these buttons carry the id across.</div>
+    </div>
+  </section>
+
+  <!-- RIGHT -->
+  <section class="report scroll" id="report">
+    <div class="empty" id="emptyState">
+      <span style="font-size:24px;font-family:var(--mono)">⌕</span>
+      <span style="max-width:340px;line-height:1.55">Pick a proposal — the inspector pulls its status, approval trail, payloads, and runs every stuck-check in one pass.</span>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  'use strict';
+  /* ---------------- sample data — 3 investigation scenarios ---------------- */
+  var STATUS = {0:'Temp',1:'Draft',2:'Pending',3:'Approved',4:'Rejected',5:'Skipped',10:'In-progress (sentinel)'};
+  var SCEN = [
+    { /* A — happy: approved full chain, delegate on SDM */
+      id:'3f9a1c02-8d4e-4b17-9c6a-2b7f0e5d1a44',
+      req:'J-S001-R2600013', ver:2, type:'R', status:3, sap:'success',
+      month:7, year:2026, cg:'CG-NE-014 · Northeast dealers', region:'NE · Northeast',
+      org:'J / S001', creator:{name:'Somchai R.', role:'srp', email:'somchai.r@dev.sam'},
+      dates:{start:'2026-07-01', end:'2026-07-31', purpose:'2026-06-24', request:'2026-06-24 09:12', approval:'2026-06-27 14:03'},
+      lastApproval:'Chatri C. (cdr)', rowver:'0x00000000000A3F21',
+      lineage:[{req:'J-S001-R2600013',ver:0,st:3},{req:'J-S001-R2600013',ver:1,st:3},{req:'J-S001-R2600013',ver:2,st:3,cur:true}],
+      timeline:[
+        {role:'srp', name:'Somchai R.', act:'Submitted', node:'ok', icon:'↑', when:'06-24 09:12'},
+        {role:'sam', name:'Anucha P.', act:'Approved', node:'ok', icon:'✓', when:'06-25 10:41', cmt:'Volume matches Q3 target.'},
+        {role:'sdm', name:'Boonmee K.', act:'Approved', node:'ok', icon:'✓', when:'06-26 08:15', del:'for Somsak T. (delegate 06-20 → 07-05)'},
+        {role:'pte', name:'Pornthip S.', act:'Approved', node:'ok', icon:'✓', when:'06-26 16:22'},
+        {role:'cdr', name:'Chatri C.', act:'Approved', node:'ok', icon:'✓', when:'06-27 14:03', job:'hangfire job 8842 → SAP sync done'}
+      ],
+      who:{title:'No approver needed — chain complete', rows:[]},
+      diag:[
+        {ck:'status', st:'ok', dt:'Approved(3) — terminal state, no pending step'},
+        {ck:'sentinel-10', st:'ok', dt:'not stuck — no in-progress sentinel'},
+        {ck:'temp-cleanup', st:'ok', dt:'not Temp(0) — cleanup job will not touch it'},
+        {ck:'close-month', st:'ok', dt:'2026/07 open — CloseMonth has no lock for this period'},
+        {ck:'sap-sync', st:'ok', dt:'SAPStatus=success — CDR async job completed'},
+        {ck:'cg-conflict', st:'ok', dt:'no other Draft/Pending on CG-NE-014 in 2026/07'}
+      ],
+      payload:{schema:2, pages:'3 active · 0 deleted', products:5,
+        json:'{\n  <k>"schemaVersion"</k><p>:</p> <n>2</n><p>,</p>\n  <k>"pages"</k><p>:</p> [\n    { <k>"pageId"</k><p>:</p> <s>"pg-01"</s><p>,</p> <k>"deleted"</k><p>:</p> <n>false</n><p>,</p>  <c>// payload was double-encoded — decoded for display</c>\n      <k>"values"</k><p>:</p> { <k>"rebate"</k><p>:</p> { <k>"r1"</k><p>:</p> { <k>"old"</k><p>:</p> <n>1.25</n><p>,</p> <k>"new"</k><p>:</p> <n>1.50</n> } } } }\n    <p>…</p>\n  ]\n}',
+        contracts:[]},
+      rel:{customers:{n:3, items:['C000481 — NE Wholesale Co.','C000502 — Udon Trading','C000517 — Khonkaen Retail']},
+           products:{n:5, items:['P-10021 · TypeRS 42 rows','P-10022','P-10035','P-10036','P-10040']},
+           files:{n:2, items:['quotation-q3.pdf → minio:prop/3f9a…/q3.pdf','price-sheet.xlsx → minio:prop/3f9a…/ps.xlsx']}}
+    },
+    { /* B — stuck at PTE: ASM bypass + sdm delegate, waiting 3 days */
+      id:'a71e5b90-2c3d-4f81-b6e2-9d0c4a1f7e35',
+      req:'J-S001-P2600005', ver:1, type:'P', status:2, sap:'',
+      month:7, year:2026, cg:'CG-BKK-003 · Modern trade BKK', region:'C · Central',
+      org:'J / S001', creator:{name:'Anucha P.', role:'sam', email:'anucha.p@dev.sam'},
+      dates:{start:'2026-07-01', end:'2026-12-31', purpose:'2026-06-28', request:'2026-06-28 11:30', approval:'—'},
+      lastApproval:'—', rowver:'0x00000000000B1204',
+      lineage:[{req:'J-S001-P2600005',ver:0,st:3},{req:'J-S001-P2600005',ver:1,st:2,cur:true}],
+      timeline:[
+        {role:'sam', name:'Anucha P.', act:'Submitted', node:'ok', icon:'↑', when:'06-28 11:30'},
+        {role:'sam', name:'—', act:'Bypassed', node:'byp', icon:'⤳', when:'06-28 11:30', byp:'submitter is ASM — own step auto-approved at submit'},
+        {role:'sdm', name:'Boonmee K.', act:'Approved', node:'ok', icon:'✓', when:'06-29 09:05', del:'for Somsak T. (delegate 06-20 → 07-05)'},
+        {role:'pte', name:'', act:'Waiting — current step', node:'cur', icon:'●', when:'pending since 06-29 · 3 days'},
+        {role:'cdr', name:'', act:'Waiting', node:'wait', icon:'○', when:''}
+      ],
+      who:{title:'Current step: PTE — anyone below can act', rows:[
+        {ini:'PS', nm:'Pornthip S.', em:'pornthip.s@dev.sam', why:'pricing team · no delegate active', hot:true},
+        {ini:'WK', nm:'Wichai K.', em:'wichai.k@dev.sam', why:'pricing team · ⚠ locked out (LockoutEnd 07-05)', hot:false}
+      ], note:'sam-track visibility: creator is ASM himself — no ownership issue. sdm/pte/cdr use /approval/sdm/{id} (no ownership check).'},
+      diag:[
+        {ck:'status', st:'ok', dt:'Pending(2) — in flight, current step PTE'},
+        {ck:'sentinel-10', st:'ok', dt:'not stuck — no in-progress sentinel'},
+        {ck:'temp-cleanup', st:'ok', dt:'not Temp(0)'},
+        {ck:'close-month', st:'ok', dt:'2026/07 open'},
+        {ck:'pte-idle', st:'warn', dt:'waiting at PTE for 3 days — Pornthip S. is the only unlocked PTE user'},
+        {ck:'cg-conflict', st:'warn', dt:'CG-BKK-003 also has Draft J-S001-P2600009 v0 (devkit clone) in 2026/07 — FE may refuse a new create'}
+      ],
+      payload:{schema:2, pages:'2 active · 1 deleted', products:4,
+        json:'{\n  <k>"schemaVersion"</k><p>:</p> <n>2</n><p>,</p>\n  <k>"pages"</k><p>:</p> [\n    { <k>"pageId"</k><p>:</p> <s>"pg-01"</s><p>,</p> <k>"deleted"</k><p>:</p> <n>false</n><p>,</p>\n      <k>"values"</k><p>:</p> { <k>"contract"</k><p>:</p> { <k>"c1"</k><p>:</p> { <k>"old"</k><p>:</p> <s>""</s><p>,</p> <k>"new"</k><p>:</p> <s>""</s> } } }  <c>// contract empty — SAP not synced yet</c>\n    <p>…</p>\n  ]\n}',
+        contracts:[{prod:'P-20011', col:'SAP_CONTRACT_NO', val:'— empty (Type P: filled after CDR → SAP CreateContract)'}]},
+      rel:{customers:{n:1, items:['C000112 — BKK Modern Trade Ltd. (Type P: max 1 customer)']},
+           products:{n:4, items:['P-20011 · TypeP 4 rows','P-20014','P-20017','P-20021']},
+           files:{n:1, items:['contract-draft.pdf → minio:prop/a71e…/cd.pdf']}}
+    },
+    { /* C — broken: sentinel 10 stuck + SAP hole */
+      id:'c04d7f18-6a92-4e3b-8f15-0b2e9c6d4a77',
+      req:'J-S002-S2600032', ver:0, type:'S', status:10, sap:'',
+      month:6, year:2026, cg:'CG-S-021 · South distributors', region:'S · South',
+      org:'J / S002', creator:{name:'Prasert W.', role:'srp', email:'prasert.w@dev.sam'},
+      dates:{start:'2026-06-01', end:'2026-06-30', purpose:'2026-05-30', request:'2026-05-30 15:44', approval:'—'},
+      lastApproval:'—', rowver:'0x00000000000C88F0',
+      lineage:[{req:'J-S002-S2600032',ver:0,st:10,cur:true}],
+      timeline:[
+        {role:'srp', name:'Prasert W.', act:'Submitted', node:'ok', icon:'↑', when:'05-30 15:44'},
+        {role:'sam', name:'Kittipong N.', act:'Approved', node:'ok', icon:'✓', when:'06-02 10:18'},
+        {role:'sdm', name:'Somsak T.', act:'Approved', node:'ok', icon:'✓', when:'06-03 13:50'},
+        {role:'pte', name:'Pornthip S.', act:'Approve crashed mid-flight', node:'err', icon:'✕', when:'06-04 09:31', byp:'status set to 10, never reset — request died before commit'},
+        {role:'cdr', name:'', act:'Unreachable', node:'wait', icon:'○', when:''}
+      ],
+      who:{title:'Nobody can act — sentinel blocks the approve gate', rows:[],
+        note:'PUT /approve updates rows only where status=2. With status=10 every attempt reports "already processed". Fix the row first (see diagnosis), then PTE can retry.'},
+      diag:[
+        {ck:'status', st:'err', dt:'ProposalStatus=10 — in-progress sentinel STUCK since 06-04 09:31 (28 days). Approve gate rejects all actions.'},
+        {ck:'sentinel-10', st:'err', dt:'root cause candidate — reset row to Pending(2) via SQL, then re-run PTE approve'},
+        {ck:'temp-cleanup', st:'ok', dt:'not Temp(0)'},
+        {ck:'close-month', st:'err', dt:'2026/06 is CLOSED — even after reset, submit/edit for this period is locked. Approval can still proceed.'},
+        {ck:'sap-sync', st:'warn', dt:'SAPStatus empty + no ChangeContract staging row — chain never reached CDR, expected but worth knowing'},
+        {ck:'month-rule', st:'warn', dt:'source month 2026/06 is in the past — this proposal cannot be cloned into 06 (current/next month rule)'}
+      ],
+      payload:{schema:2, pages:'4 active · 0 deleted', products:6,
+        json:'{\n  <k>"schemaVersion"</k><p>:</p> <n>2</n><p>,</p>\n  <k>"pages"</k><p>:</p> [\n    { <k>"pageId"</k><p>:</p> <s>"pg-01"</s><p>,</p> <k>"deleted"</k><p>:</p> <n>false</n><p>,</p>\n      <k>"values"</k><p>:</p> { <k>"contract"</k><p>:</p> { <k>"c1"</k><p>:</p> { <k>"old"</k><p>:</p> <s>"41000778"</s><p>,</p> <k>"new"</k><p>:</p> <s>""</s> } } }  <c>// Type S: CONTRACT_NO expected after sync</c>\n    <p>…</p>\n  ]\n}',
+        contracts:[{prod:'P-30005', col:'CONTRACT_NO', val:'source 41000778 · new — missing'}]},
+      rel:{customers:{n:2, items:['C000701 — Hatyai Dist Co.','C000704 — Phuket Supply']},
+           products:{n:6, items:['P-30005 · TypeRS 58 rows','P-30008','P-30011','P-30015','P-30019','P-30022']},
+           files:{n:0, items:[]}}
+    }
+  ];
+
+  var st = { sel:null };
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  function statusBadge(s){
+    if(s===3) return '<span class="badge b-green"><span class="dot" style="background:var(--green)"></span>Approved</span>';
+    if(s===2) return '<span class="badge b-ind"><span class="dot" style="background:var(--accent)"></span>Pending</span>';
+    if(s===10) return '<span class="badge b-red"><span class="dot" style="background:var(--red)"></span>In-progress sentinel</span>';
+    if(s===4) return '<span class="badge b-red"><span class="dot" style="background:var(--red)"></span>Rejected</span>';
+    if(s===1) return '<span class="badge b-amber"><span class="dot" style="background:var(--amber)"></span>Draft</span>';
+    return '<span class="badge b-gray"><span class="dot" style="background:#8b949e"></span>'+STATUS[s]+'</span>';
+  }
+  function stColor(s){ return s===3?'var(--green)':(s===2?'var(--accent)':(s===10||s===4?'var(--red)':'var(--mut2)')); }
+
+  /* ---------------- left: search list ---------------- */
+  function renderRows(){
+    var f = $('q').value.trim().toLowerCase();
+    var list = SCEN.filter(function(s){ return !f || s.req.toLowerCase().indexOf(f)>=0 || s.id.indexOf(f)===0; });
+    $('srcCount').textContent = list.length + ' found';
+    $('rows').innerHTML = list.map(function(s){
+      var on = st.sel && st.sel.id===s.id;
+      return '<button type="button" class="srow'+(on?' on':'')+'" data-id="'+s.id+'">'
+        + '<span class="rq">'+s.req+'</span><span class="vv">v'+s.ver+'</span>'
+        + '<span class="tb '+s.type+'">'+s.type+'</span>'
+        + '<span class="stt" style="color:'+stColor(s.status)+'">'+STATUS[s.status]+'</span></button>';
+    }).join('') || '<div style="padding:12px;text-align:center;font:400 11px var(--sans);color:var(--mut3)">No match</div>';
+    Array.prototype.forEach.call(document.querySelectorAll('.srow'), function(b){
+      b.addEventListener('click', function(){
+        st.sel = SCEN.filter(function(s){ return s.id===b.getAttribute('data-id'); })[0];
+        renderRows(); renderReport();
+      });
+    });
+  }
+
+  /* ---------------- right: report sections ---------------- */
+  function headerCard(s){
+    return '<div class="card">'
+      + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      +   '<span style="font:700 16px var(--mono);letter-spacing:-.01em">'+s.req+'</span>'
+      +   '<span style="font:400 12px var(--mono);color:var(--mut2)">v'+s.ver+'</span>'
+      +   '<span class="tb '+s.type+'" style="padding:2px 9px">Type '+s.type+' · id '+({'P':1,'R':2,'S':3})[s.type]+'</span>'
+      +   statusBadge(s.status)
+      +   '<div style="flex:1"></div><code class="k">'+s.id.slice(0,8)+'…'+s.id.slice(-4)+'</code>'
+      + '</div>'
+      + '<div class="kv">'
+      +   kv('Period', s.year+' / '+String(s.month).padStart(2,'0'))
+      +   kv('Customer group', s.cg)
+      +   kv('Region', s.region)
+      +   kv('Sale org / office', s.org)
+      +   kv('Created by', s.creator.name+' <small>('+s.creator.role+')</small>')
+      +   kv('Requested', s.dates.request)
+      +   kv('Start → End', s.dates.start+' → '+s.dates.end)
+      +   kv('Approved', s.dates.approval + (s.lastApproval!=='—' ? ' <small>by '+s.lastApproval+'</small>' : ''))
+      +   kv('SAPStatus', s.sap ? s.sap : '<span style="color:var(--mut3)">— none</span>')
+      +   kv('RowVersion', s.rowver)
+      + '</div></div>';
+  }
+  function kv(l,v){ return '<div><div class="l">'+l+'</div><div class="v">'+v+'</div></div>'; }
+
+  function lineageCard(s){
+    var chain = s.lineage.map(function(n){
+      return '<span class="lin'+(n.cur?' cur':'')+'"><b>v'+n.ver+'</b><span class="ls" style="color:'+stColor(n.st)+'">'+STATUS[n.st]+'</span></span>';
+    }).join('<span class="larrow">→</span>');
+    return '<div class="card"><div class="sect">Version lineage · PreviousId chain</div>'
+      + '<div class="lineage">'+chain+'</div>'
+      + (s.lineage.length>1
+          ? '<div style="font:400 10.5px var(--sans);color:var(--mut2);margin-top:9px">Each hop = clone with <code class="k" style="font-size:10px">PreviousId</code> pointing back — P.M. Max baseline reads through this chain.</div>'
+          : '<div style="font:400 10.5px var(--sans);color:var(--mut2);margin-top:9px">No ancestors, no clones — single-version proposal.</div>')
+      + '</div>';
+  }
+
+  function timelineCard(s){
+    var steps = s.timeline.map(function(t){
+      var flags = '';
+      if(t.del) flags += '<span class="flag f-del">DELEGATE</span>';
+      if(t.byp) flags += '<span class="flag f-byp">'+(t.node==='err'?'CRASH':'BYPASS')+'</span>';
+      if(t.job) flags += '<span class="flag f-job">ASYNC JOB</span>';
+      return '<div class="step">'
+        + '<span class="node n-'+t.node+'">'+t.icon+'</span><span class="stem"></span>'
+        + '<div class="body">'
+        +   '<div class="rl"><span class="role">'+t.role+'</span>'+(t.name && t.name!=='—' ? t.name+' — ' : '')+t.act+flags+'</div>'
+        +   (t.when ? '<div class="meta">'+t.when+'</div>' : '')
+        +   (t.del ? '<div class="cmt">↷ '+esc(t.del)+'</div>' : '')
+        +   (t.byp ? '<div class="cmt">'+esc(t.byp)+'</div>' : '')
+        +   (t.cmt ? '<div class="cmt">“'+esc(t.cmt)+'”</div>' : '')
+        +   (t.job ? '<div class="cmt">'+esc(t.job)+'</div>' : '')
+        + '</div></div>';
+    }).join('');
+    return '<div class="card"><div class="sect">Approval timeline · ApprovalHistory</div><div class="rail">'+steps+'</div></div>';
+  }
+
+  function whoCard(s){
+    var rows = s.who.rows.map(function(r){
+      return '<div class="whorow'+(r.hot?' hot':'')+'">'
+        + '<span class="avatar">'+r.ini+'</span>'
+        + '<div><div class="nm">'+r.nm+'</div><div class="em">'+r.em+'</div></div>'
+        + '<div class="why">'+r.why+'</div></div>';
+    }).join('');
+    return '<div class="card"><div class="sect">Who can approve right now</div>'
+      + '<div style="font:600 12.5px var(--sans);color:'+(s.who.rows.length? 'var(--ink)':'var(--mut)')+'">'+s.who.title+'</div>'
+      + (rows ? '<div class="who">'+rows+'</div>' : '')
+      + (s.who.note ? '<div style="font:400 11px var(--sans);color:var(--mut2);margin-top:10px;line-height:1.5">'+s.who.note+'</div>' : '')
+      + '</div>';
+  }
+
+  function diagCard(s){
+    var nOk = s.diag.filter(function(d){return d.st==='ok'}).length;
+    var nWarn = s.diag.filter(function(d){return d.st==='warn'}).length;
+    var nErr = s.diag.filter(function(d){return d.st==='err'}).length;
+    var rows = s.diag.map(function(d){
+      var ic = d.st==='ok' ? '✓' : (d.st==='warn' ? '!' : '✕');
+      return '<div class="drow '+d.st+'"><span class="ic">'+ic+'</span><span class="ck">'+d.ck+'</span><span class="dt">'+d.dt+'</span></div>';
+    }).join('');
+    return '<div class="diag">'
+      + '<div class="dhead"><div style="display:flex;gap:6px">'
+      +   '<span style="width:11px;height:11px;border-radius:50%;background:#ff5f56"></span>'
+      +   '<span style="width:11px;height:11px;border-radius:50%;background:#ffbd2e"></span>'
+      +   '<span style="width:11px;height:11px;border-radius:50%;background:#27c93f"></span></div>'
+      +   '<span class="t">diagnosis</span>'
+      +   '<span class="dsum">'+s.diag.length+' checks · '+nOk+' ok'+(nWarn?' · '+nWarn+' warn':'')+(nErr?' · '+nErr+' fail':'')+'</span>'
+      + '</div><div class="dbody">'+rows+'</div></div>';
+  }
+
+  function payloadCard(s){
+    var p = s.payload;
+    var json = p.json.replace(/<k>/g,'<span class="cj-k">').replace(/<\/k>/g,'</span>')
+      .replace(/<s>/g,'<span class="cj-s">').replace(/<\/s>/g,'</span>')
+      .replace(/<n>/g,'<span class="cj-n">').replace(/<\/n>/g,'</span>')
+      .replace(/<p>/g,'<span class="cj-p">').replace(/<\/p>/g,'</span>')
+      .replace(/<c>/g,'<span class="cj-c">').replace(/<\/c>/g,'</span>');
+    var ct = p.contracts.length
+      ? '<table class="ctable"><tr><th>Product</th><th>Contract column</th><th>Value</th></tr>'
+        + p.contracts.map(function(c){ return '<tr><td><b>'+c.prod+'</b></td><td>'+c.col+'</td><td>'+c.val+'</td></tr>'; }).join('')
+        + '</table>'
+      : '';
+    return '<div class="card"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:2px">'
+      + '<span class="sect" style="margin:0">Payload · decoded</span>'
+      + '<div class="tabs"><button type="button" class="on">Rebate</button><button type="button">Special</button><button type="button">Accum</button></div></div>'
+      + '<div class="chipline">'
+      +   '<div class="chip">schemaVersion <b>'+p.schema+'</b></div>'
+      +   '<div class="chip">pages <b>'+p.pages+'</b></div>'
+      +   '<div class="chip">products <b>'+p.products+'</b></div>'
+      + '</div>'
+      + '<div class="codebox">'+json+'</div>' + ct + '</div>';
+  }
+
+  function relCard(s){
+    function box(n, t, items){
+      return '<div class="relbox"><div class="rc">'+n+'</div><div class="rt">'+t+'</div>'
+        + (items.length ? '<ul>'+items.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul>' : '')
+        + '</div>';
+    }
+    return '<div class="card"><div class="sect">Related rows</div><div class="relgrid">'
+      + box(s.rel.customers.n, 'ProposalCustomer', s.rel.customers.items)
+      + box(s.rel.products.n, 'ProposalProduct (+Type'+(s.type==='P'?'P':'RS')+')', s.rel.products.items)
+      + box(s.rel.files.n, 'ProposalFile → MinIO', s.rel.files.items)
+      + '</div></div>';
+  }
+
+  function renderReport(){
+    var s = st.sel;
+    $('quickSect').hidden = !s;
+    if(!s){ return; }
+    $('report').innerHTML =
+      headerCard(s) + lineageCard(s) + timelineCard(s) + whoCard(s) + diagCard(s) + payloadCard(s) + relCard(s);
+    $('report').scrollTop = 0;
+  }
+
+  $('q').addEventListener('input', renderRows);
+  renderRows();
+})();
+</script>

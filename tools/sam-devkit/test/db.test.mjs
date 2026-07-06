@@ -25,6 +25,32 @@ test('nonzero exit throws with stderr text', async () => {
   );
 });
 
+test('nonzero exit with EMPTY stderr falls back to stdout text (sqlcmd sends T-SQL errors there by default)', async () => {
+  const boom = async () => {
+    const e = new Error('Command failed: sqlcmd -S host -d db -Q SELECT 1;'); // Node's generic execFile message
+    e.stderr = '';
+    e.stdout = "Msg 208, Level 16, State 1, Server x, Line 1\nInvalid object name 'dbo.Ghost'.";
+    e.code = 1;
+    throw e;
+  };
+  await assert.rejects(
+    () => runSql({ server: 'localhost', database: 'd', user: 'u', password: 'p', sql: 'x', exec: boom }),
+    /Invalid object name/,
+  );
+});
+
+test('nonzero exit with BOTH streams empty falls back to the generic message (last resort)', async () => {
+  const boom = async () => {
+    const e = new Error('Command failed: sqlcmd -S host');
+    e.stderr = ''; e.stdout = ''; e.code = 1;
+    throw e;
+  };
+  await assert.rejects(
+    () => runSql({ server: 'localhost', database: 'd', user: 'u', password: 'p', sql: 'x', exec: boom }),
+    /Command failed/,
+  );
+});
+
 test('missing sqlcmd (ENOENT) throws a clear not-found error', async () => {
   const enoent = async () => { const e = new Error('spawn sqlcmd ENOENT'); e.code = 'ENOENT'; throw e; };
   await assert.rejects(

@@ -1,10 +1,11 @@
 # sam-devkit
 
-Dev harness for the SAM proposal lifecycle. Three tools: **Approve-through** — drive a
+Dev harness for the SAM proposal lifecycle. Four tools: **Approve-through** — drive a
 Pending proposal through the full approval chain (`sam → sdm → pte → cdr`) without
 logging in as four roles by hand — **SAP fixup** — force-set a proposal's SAP
-state directly in the DB — and **Clone → Draft** — copy a proposal (details included)
-into a fresh Draft directly in the DB. **Dev/local only — never point it at production.**
+state directly in the DB — **Clone → Draft** — copy a proposal (details included)
+into a fresh Draft directly in the DB — and **Inspector** — read-only X-ray of one
+proposal for investigation. **Dev/local only — never point it at production.**
 
 ## Setup
 ```bash
@@ -145,6 +146,142 @@ copied.
 - Each search row has an **Action** column — copy the proposal id, or open the proposal in the web app.
 - After a successful clone the search box switches to the result's `RequestNo` and the list
   **auto-refreshes**, so the fresh Draft shows up immediately (both modes).
+
+## Inspector (direct DB — read-only)
+
+X-ray one proposal to answer "where is it stuck and why" without opening SSMS.
+Paste a proposal id (or pick one from the recent list) and run — everything is
+`SELECT`-only through the same `db` config + dev-host guard as SAP fixup.
+
+**What it shows**
+- **Header** — status decoded (incl. the `10` in-progress sentinel), Type P=1/R=2/S=3,
+  period, CustomerGroup, creator (+role), dates, `SAPStatus`, `RowVersion` (hex).
+- **Version lineage** — walks the `PreviousId` chain both directions; current node flagged.
+- **Approval timeline** — `ApprovalHistory` in order, with `BYPASS` (ASM auto-bypass) and
+  `DELEGATE` badges.
+- **Who can approve right now** — derives the waiting role from history + status, lists that
+  role's users and why each can/can't act: lockout, inactive, active delegation today
+  (Thai timezone), sam-track ownership (creator or their direct manager only — otherwise
+  the detail GET 403s), and the SDM auto-delegate rule (ALL SDM delegating → step
+  auto-approves).
+- **Diagnosis** — always-on checklist: stuck sentinel 10, Temp(0) cleanup, CloseMonth lock
+  for the period, Approved-but-`SAPStatus`-empty (async CDR job), CustomerGroup conflict
+  (another Draft/Pending on the same CG this period), past-month clone rule.
+- **Payloads** — decodes the double-encoded rebate/special/accum JSON: schemaVersion,
+  active/deleted pages, product ids, contract values.
+- **Related rows** — ProposalCustomer / ProposalProduct / ProposalFile (MinIO keys).
+
+**Notes**
+- Requires the `db` block in `config.json` (same as SAP fixup); no role accounts needed.
+- Writes nothing. To fix what it finds, use SAP fixup / Clone / SQL by hand.
+
+## Overview X-ray (direct DB — read-only)
+
+Recomputes the **Approval › Overview** table (the per-product discount/rebate
+"รายละเอียด / Details" grid at `/approval/{id}`) from raw DB rows, and shows for
+every column: **source → grain/filter → formula → the actual arithmetic** for
+the clicked row. Column sets follow the real screen: **SAM** = short set with
+the rebate breakdown; **SDM · PTE · CDR** = long set (+Price EXW, UCM,
+Var-Cost, Comm. Margin, % vs Price List). Type R / S / P grains are all
+implemented, mirrored from `Features/Approval/{Sam,Sdm}/GetById/OverviewDetailType{R,S,P}.cs`.
+
+**Verify mode** — devkit logs in with the `sam` / `sdm` account from
+`config.json`, calls the real `GET /approval/sam|sdm/{id}`, and diffs its own
+numbers against the API cell by cell. Mismatched cells turn red with both
+values. This doubles as a drift detector: the BE formulas exist twice
+(`Sam/` vs `Sdm/`) and devkit is a third copy — when any of them drifts, the
+diff lights up.
+
+**Known BE quirks it surfaces** (verified from code, 2026-07-04)
+- Type R excludes `SR2/AR1` from the rebate sum; Type S includes them.
+- "Net Freight" column is really `SUBSIDY` (freight subsidy snapshot at save-time).
+- `PRICE_LIST`/`SUBSIDY`/`VAR_COST` come from `g.First()` without an ORDER BY.
+- Type P with-previous path never selects `VAR_COST` → Var-Cost shows 0 and
+  Comm. Margin is computed with 0 whenever the proposal has a previous version.
+- Type P PM matches the previous proposal's row by the **same page number** —
+  gapped pages miss and show 0.
+
+**P.M. Max screen** — the X-ray tile's third screen compares the
+`meta.pmLastStep` baseline STORED in the saved rebate payload against what the
+BE would inject today (`InjectPmMaxBaseline`: same reindexed page → its
+baseline; added page or missing counterpart → page-1 fallback). A `STALE` cell
+means the persisted baseline drifted from the recomputed one — the SAM-1810
+family of bugs, caught per (page, section, product).
+
+**Summary screen** — the X-ray tile's second screen replicates the **Request ›
+Summary footer** (Current / Latest Approved / Changed) plus a per-section
+breakdown showing exactly which section contributes what. It computes the two
+grains independently, the classic confusion point:
+- *Current* = FE `accumulateMaxBySection` — per section, max(`new`) on that
+  section's last countable page (added pages included).
+- *Latest Approved* = BE baseline recomputed devkit-side from the previous
+  proposal's `ProposalProductTypeRS`: max(RATE) per (PAGE, product, RATE_TYPE)
+  → reindex gapped pages → last-page-per-section collapse (+ Discount as
+  `discountHeader`). Constant — editing the draft never moves it.
+- No `PreviousId` → Latest falls back to max(`old`) per section, added pages
+  excluded (SAM-1767 rule). The report labels which baseline path was used.
+
+## People & Permissions (direct DB — read-only + one opt-in write)
+
+Type an email (exact or partial) or part of a name → one card answers the
+recurring "ปุ่มหาย / มองไม่เห็น / login ไม่ได้" class of tickets:
+
+- **Org** — manager chain up (`ReportToId`, recursive), direct reports down
+  (+indirect count), sale office/group.
+- **Delegates today** (Thai timezone) — anyone on the chain actively delegating
+  shows a `delegating → X (from → to)` badge; delegations *received* by the user
+  are listed too.
+- **Lockout** — locked accounts show `LOCKED until …` with an **unlock** button —
+  the module's only write (`LockoutEnd = NULL, AccessFailedCount = 0`), behind a
+  confirm dialog. Dev accounts lock constantly (lockout-on-failure policy).
+- **Permission matrix** — which FE menus the role can reach
+  (`ROLE_PERMISSIONS` + landing page) and which BE policies pass
+  (`Program.cs AddPolicy` → role list, ✓/✕ per policy).
+
+The matrix reads `lib/permissions-snapshot.json`, generated from the real
+sources (`permissions.ts` + `Program.cs`) and stamped with the source commit.
+When `web/` permission code changes, regenerate:
+
+```bash
+npm run gen-permissions
+```
+
+## SAP Sync Inspector (direct DB — read-only)
+
+Compares main DB `Proposal.SAPStatus` against the SAP staging table for the
+proposal's period, decoding the flow-specific success indicator so you don't
+have to remember it: **Create Discount (Type R) → `"0"`**, **Create Contract
+(Type P) → `"C"`**, **Change Contract (Type S) → `"S"`** — never the same
+value twice. Read-only companion to **SAP fixup**, which writes.
+
+**What it flags**
+- `main=success` but no staging row for the period → sync never landed, or
+  wrong period.
+- `main=success` but staging `SAP_RETURN` doesn't decode to that flow's
+  success value → main/staging disagree.
+- Synced successfully (Type P/S) but no contract number written to staging.
+- `main` empty with an existing staging row → possibly stuck mid-update.
+- `main=fail` matching a failed staging row is reported **ok** — that's the
+  expected state, not a mismatch.
+
+Staging rows list `DOCNO`, raw `SAP_RETURN`, decoded success, contract number,
+`SAP_MESSAGE`, and `PROCESSED_AT`.
+
+## Env Preflight (read-only)
+
+One button, five checks — answers "is this env ready to test" before a QA
+round instead of debugging a broken env mid-session:
+
+1. **Role logins** — one attempt per configured role account (never retries —
+   same lockout guard as every other module).
+2. **srp → sam ReportToId** — full 4-step approve-through chain needs this;
+   mismatch means submit as `sam` instead (Module C option b).
+3. **Approved clone source** — at least one proposal Clone → Draft can copy from.
+4. **`/requests/options` data** — customers/sale orgs/proposal groups
+   dropdowns are non-empty (master data seeded, API reachable).
+5. **CloseMonth** — is the current period open for create/submit.
+
+Composes existing checks rather than re-querying — no new source of truth.
 
 ## Test
 ```bash
