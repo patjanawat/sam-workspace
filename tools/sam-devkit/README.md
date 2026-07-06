@@ -180,7 +180,7 @@ copied.
 ## Inspector (direct DB — read-only)
 
 X-ray one proposal to answer "where is it stuck and why" without opening SSMS.
-Paste a proposal id (or pick one from the recent list) and run — everything is
+Pick a proposal from the shared picker (see above) and run — everything is
 `SELECT`-only through the same `db` config + dev-host guard as SAP fixup.
 
 **What it shows**
