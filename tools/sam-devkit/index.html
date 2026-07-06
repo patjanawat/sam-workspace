@@ -618,6 +618,7 @@
       state.pickerResults = [];
       renderPickerResults();
     } finally {
+      state.pickerLoaded = true;
       syncAction();
     }
   }
