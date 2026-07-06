@@ -606,6 +606,7 @@
           try {
             const r = JSON.parse(line.slice(7));
             state.pickerResults = r.proposals || [];
+            state.pickerLoaded = true;
             renderPickerResults();
           } catch (e) { appendLine('ERROR bad recent-list result: ' + e.message); }
         } else {
@@ -617,7 +618,6 @@
       state.pickerResults = [];
       renderPickerResults();
     } finally {
-      state.pickerLoaded = true;
       syncAction();
     }
   }
