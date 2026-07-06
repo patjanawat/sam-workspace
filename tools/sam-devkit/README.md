@@ -267,6 +267,22 @@ value twice. Read-only companion to **SAP fixup**, which writes.
 Staging rows list `DOCNO`, raw `SAP_RETURN`, decoded success, contract number,
 `SAP_MESSAGE`, and `PROCESSED_AT`.
 
+## Env Preflight (read-only)
+
+One button, five checks — answers "is this env ready to test" before a QA
+round instead of debugging a broken env mid-session:
+
+1. **Role logins** — one attempt per configured role account (never retries —
+   same lockout guard as every other module).
+2. **srp → sam ReportToId** — full 4-step approve-through chain needs this;
+   mismatch means submit as `sam` instead (Module C option b).
+3. **Approved clone source** — at least one proposal Clone → Draft can copy from.
+4. **`/requests/options` data** — customers/sale orgs/proposal groups
+   dropdowns are non-empty (master data seeded, API reachable).
+5. **CloseMonth** — is the current period open for create/submit.
+
+Composes existing checks rather than re-querying — no new source of truth.
+
 ## Test
 ```bash
 node --test

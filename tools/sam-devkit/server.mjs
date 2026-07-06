@@ -14,6 +14,7 @@ import { xraySummary } from './lib/xray-summary.mjs';
 import { orgLookup, unlockUser, permissionMatrix } from './lib/org-lookup.mjs';
 import { xrayPmMax } from './lib/xray-pmmax.mjs';
 import { sapInspect } from './lib/sap-inspector.mjs';
+import { runPreflight } from './lib/preflight.mjs';
 import permissionsSnapshot from './lib/permissions-snapshot.json' with { type: 'json' };
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
@@ -138,6 +139,25 @@ async function handleRun(req, res) {
       res.write('RESULT ' + JSON.stringify(r) + '\n');
     } catch (e) {
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'preflight') {
+    try {
+      const db = loadDbConfig(cfg);
+      assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
+      const client = createClient({ baseUrl: cfg.apiBaseUrl });
+      const login = async (role, acct) => client.login(acct);
+      const apiGet = async (path) => {
+        const { token } = await client.login(cfg.roles.srp);
+        return client.get(path, token);
+      };
+      const r = await runPreflight({ db, cfg, login, apiGet, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
     }
     return res.end();
   }

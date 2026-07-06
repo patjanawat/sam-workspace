@@ -333,6 +333,7 @@
     { key: 'xray', label: 'Overview X-ray', desc: 'Trace every approval-overview column', glyph: '⊞' },
     { key: 'people', label: 'People', desc: 'Org chart, delegates, lockout, permissions', glyph: '⚇' },
     { key: 'sap-inspect', label: 'SAP Sync Inspector', desc: 'Compare main DB vs SAP staging', glyph: '⇄' },
+    { key: 'preflight', label: 'Env Preflight', desc: 'Is this env ready to test?', glyph: '✈' },
   ];
   // Real backend contract: success / fail / '' (clear) / omitted (leave unchanged — sentinel)
   const SAP_OPTIONS = [
@@ -470,14 +471,15 @@
     const xr = state.action === 'xray';
     const ppl = state.action === 'people';
     const sapx = state.action === 'sap-inspect';
+    const pf = state.action === 'preflight';
     $('sapSection').hidden = !sap;
     $('contractSection').hidden = !sap;
-    $('proposalSection').hidden = clone || ppl;
+    $('proposalSection').hidden = clone || ppl || pf;
     $('cloneSection').hidden = !clone;
     $('xraySection').hidden = !xr;
     $('peopleSection').hidden = !ppl;
-    if (!insp && !xr && !ppl && !sapx) hideInspectReport();
-    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : ppl ? 'Run people lookup' : sapx ? 'Run SAP inspect' : 'Run approve-through';
+    if (!insp && !xr && !ppl && !sapx && !pf) hideInspectReport();
+    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : ppl ? 'Run people lookup' : sapx ? 'Run SAP inspect' : pf ? 'Run preflight' : 'Run approve-through';
     if (clone) syncCloneMode();
     syncRun();
   }
@@ -710,6 +712,7 @@
     if (state.action === 'clone') return !!state.cloneSource;
     if (state.action === 'people') return $('peopleQuery').value.trim().length >= 2;
     if (state.action === 'sap-inspect') return guidValid($('proposalId').value);
+    if (state.action === 'preflight') return true;
     if (!guidValid($('proposalId').value)) return false;
     if (state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim()) return false;
     return true;
@@ -1041,6 +1044,43 @@
 
 
 
+
+
+  // ---------- Env Preflight ----------
+  function renderPreflightReport(r) {
+    if (!r || !r.checks) return;
+    const rep = $('inspectReport');
+    const badge = r.ready
+      ? '<span class="status-pill" style="background:rgba(63,185,80,.12); color:#15803d;"><span class="dot" style="background:#15803d;"></span>READY</span>'
+      : '<span class="status-pill" style="background:rgba(248,81,73,.12); color:#b91c1c;"><span class="dot" style="background:#b91c1c;"></span>NOT READY</span>';
+    const LABEL = { logins: 'Role account logins', 'report-to': 'srp → sam ReportToId', 'clone-source': 'Approved clone source', 'options-data': '/requests/options data', 'close-month': 'CloseMonth (current period)' };
+
+    let html = '<div class="result-card" style="display:block;">'
+      + '<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">'
+      + '<span class="section-title" style="margin:0;">Env Preflight — ' + escH(state.env) + '</span>' + badge + '</div>';
+
+    html += r.checks.map(function (c) {
+      var ic = c.ok === true ? '✓' : c.ok === false ? '✕' : '?';
+      var color = c.ok === true ? '#15803d' : c.ok === false ? '#b91c1c' : '#98a2b3';
+      var rowsHtml = '';
+      if (c.id === 'logins' && Array.isArray(c.rows)) {
+        rowsHtml = '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">' + c.rows.map(function (lr) {
+          return '<span style="font:600 10.5px \'IBM Plex Mono\',monospace; padding:2px 8px; border-radius:5px; color:' + (lr.ok ? '#15803d' : '#b91c1c') + '; background:' + (lr.ok ? 'rgba(63,185,80,.12)' : 'rgba(248,81,73,.12)') + ';">' + escH(lr.role) + (lr.ok ? ' ✓' : ' ✕') + '</span>';
+        }).join('') + '</div>';
+      }
+      return '<div style="display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid #eef0f3;">'
+        + '<span style="font:600 14px \'IBM Plex Mono\',monospace; color:' + color + '; width:18px;">' + ic + '</span>'
+        + '<div><div style="font:600 13px \'IBM Plex Sans\';">' + escH(LABEL[c.id] || c.id) + '</div>'
+        + '<div style="font:400 12px \'IBM Plex Sans\'; color:#667085; margin-top:2px;">' + escH(c.detail) + '</div>' + rowsHtml + '</div></div>';
+    }).join('');
+
+    html += '</div>';
+    rep.innerHTML = html;
+    rep.style.display = 'flex';
+    document.querySelector('.console-box').style.flex = '0 0 170px';
+    $('resultCard').style.display = 'none';
+    rep.scrollTop = 0;
+  }
 
   // ---------- SAP Sync Inspector ----------
   const SAP_LEVEL_STYLE = {
@@ -1415,6 +1455,9 @@
     } else if (state.action === 'sap-inspect') {
       body = { env: state.env, proposalId, module: 'sap-inspect' };
       hideInspectReport();
+    } else if (state.action === 'preflight') {
+      body = { env: state.env, module: 'preflight' };
+      hideInspectReport();
     } else {
       body = { env: state.env, proposalId, module: 'approve' };
     }
@@ -1469,6 +1512,7 @@
         else if (state.action === 'xray') renderXrayReport(obj);
         else if (state.action === 'people') renderPeopleReport(obj);
         else if (state.action === 'sap-inspect') renderSapInspectReport(obj);
+        else if (state.action === 'preflight') renderPreflightReport(obj);
         else showResult(obj);
       } catch (e) { /* leave raw line visible */ }
     }
