@@ -123,13 +123,13 @@ test('missing role inside an env profile throws naming the env + role', () => {
   assert.throws(() => loadConfig(bad, 'qa'), /environment "qa".*cdr/);
 });
 
-test('listEnvironments returns env names + apiBaseUrls and no password fields', () => {
+test('listEnvironments returns env names + apiBaseUrls + role emails and no password fields', () => {
   const list = listEnvironments(envCfg);
   assert.deepEqual(list.envNames, ['local', 'qa']);
   assert.equal(list.defaultEnv, 'local');
   assert.deepEqual(list.environments, [
-    { name: 'local', apiBaseUrl: 'http://localhost:5000' },
-    { name: 'qa', apiBaseUrl: 'https://web-sam-qa.manaosoftware.com/api' },
+    { name: 'local', apiBaseUrl: 'http://localhost:5000', roleEmails: { srp: 'a', sam: 'a', sdm: 'a', pte: 'a', cdr: 'a' } },
+    { name: 'qa', apiBaseUrl: 'https://web-sam-qa.manaosoftware.com/api', roleEmails: { srp: 'a', sam: 'a', sdm: 'a', pte: 'a', cdr: 'a' } },
   ]);
   const json = JSON.stringify(list);
   assert.ok(!json.includes('password'));
@@ -139,7 +139,14 @@ test('listEnvironments on a flat config returns a single "default" env', () => {
   const list = listEnvironments(good);
   assert.deepEqual(list.envNames, ['default']);
   assert.equal(list.defaultEnv, 'default');
-  assert.deepEqual(list.environments, [{ name: 'default', apiBaseUrl: 'http://localhost:5000' }]);
+  assert.deepEqual(list.environments, [
+    { name: 'default', apiBaseUrl: 'http://localhost:5000', roleEmails: { srp: 'a', sam: 'a', sdm: 'a', pte: 'a', cdr: 'a' } },
+  ]);
+});
+
+test('listEnvironments defaults roleEmails to empty strings when roles are absent', () => {
+  const list = listEnvironments({ apiBaseUrl: 'http://localhost:5000' });
+  assert.deepEqual(list.environments[0].roleEmails, { srp: '', sam: '', sdm: '', pte: '', cdr: '' });
 });
 
 test('flat config (no environments) still resolves as before', () => {

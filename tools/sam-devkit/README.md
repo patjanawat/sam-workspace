@@ -1,11 +1,14 @@
 # sam-devkit
 
-Dev harness for the SAM proposal lifecycle. Four tools: **Approve-through** — drive a
+Dev harness for the SAM proposal lifecycle. Five tools: **Approve-through** — drive a
 Pending proposal through the full approval chain (`sam → sdm → pte → cdr`) without
 logging in as four roles by hand — **SAP fixup** — force-set a proposal's SAP
 state directly in the DB — **Clone → Draft** — copy a proposal (details included)
-into a fresh Draft directly in the DB — and **Inspector** — read-only X-ray of one
-proposal for investigation. **Dev/local only — never point it at production.**
+into a fresh Draft directly in the DB — **Inspector** — X-ray of one proposal for
+investigation, read-only except for one path: approve/reject the current step as
+your configured dev account, right from the "who can approve" panel — and **Curl** —
+paste a raw curl command (e.g. copied from Swagger) and run it straight from the
+browser. **Dev/local only — never point it at production.**
 
 ## Setup
 ```bash
@@ -177,7 +180,7 @@ copied.
 - After a successful clone, the picker refetches and the fresh Draft shows up immediately, still
   selected, so you can switch straight to Approve-through on it.
 
-## Inspector (direct DB — read-only)
+## Inspector (direct DB — read-only, + one write path)
 
 X-ray one proposal to answer "where is it stuck and why" without opening SSMS.
 Pick a proposal from the shared picker (see above) and run — everything is
@@ -193,7 +196,11 @@ Pick a proposal from the shared picker (see above) and run — everything is
   role's users and why each can/can't act: lockout, inactive, active delegation today
   (Thai timezone), sam-track ownership (creator or their direct manager only — otherwise
   the detail GET 403s), and the SDM auto-delegate rule (ALL SDM delegating → step
-  auto-approves).
+  auto-approves). The one row whose email matches your `config.json` account for that
+  role gets **Approve**/**Reject** buttons — devkit only holds one login per role, so it
+  can only ever act as that account, never as an arbitrary name on the list. Reject
+  requires a reason. Approving/rejecting calls the real API (`PUT /requests/{id}/approve`)
+  then refreshes the report.
 - **Diagnosis** — always-on checklist: stuck sentinel 10, Temp(0) cleanup, CloseMonth lock
   for the period, Approved-but-`SAPStatus`-empty (async CDR job), CustomerGroup conflict
   (another Draft/Pending on the same CG this period), past-month clone rule.
@@ -202,8 +209,12 @@ Pick a proposal from the shared picker (see above) and run — everything is
 - **Related rows** — ProposalCustomer / ProposalProduct / ProposalFile (MinIO keys).
 
 **Notes**
-- Requires the `db` block in `config.json` (same as SAP fixup); no role accounts needed.
-- Writes nothing. To fix what it finds, use SAP fixup / Clone / SQL by hand.
+- Requires the `db` block in `config.json` (same as SAP fixup).
+- Everything except the "who can approve" Approve/Reject buttons is read-only (`SELECT`
+  through `db`, same dev-host guard as SAP fixup). Those two buttons only appear when a
+  role account is configured in `config.json` and matches a row in the list; without
+  role accounts configured, Inspector stays fully read-only. To fix anything else it
+  finds, use SAP fixup / Clone / SQL by hand.
 
 ## Overview X-ray (direct DB — read-only)
 
@@ -296,6 +307,27 @@ value twice. Read-only companion to **SAP fixup**, which writes.
 
 Staging rows list `DOCNO`, raw `SAP_RETURN`, decoded success, contract number,
 `SAP_MESSAGE`, and `PROCESSED_AT`.
+
+## Curl
+
+Paste a raw curl command — the kind Swagger's "Copy" button or a browser devtools
+"Copy as cURL" produces — and run it directly, no proposal picker needed.
+
+**What it parses:** `-X`/`--request`, `-H`/`--header` (repeatable), `-d`/`--data`/`--data-raw`/
+`--data-binary` (repeatable, joined with `&`; also flips the default method to `POST`),
+`-b`/`--cookie`, `-u`/`--user` (built into a `Basic` `Authorization` header), `-A`/`--user-agent`,
+`--url`, and the leading bare URL. Everything else (`--compressed`, `-s`, `-k`, `-L`, …) is
+ignored rather than misread as the URL. Multi-line commands with a trailing `\` paste in fine.
+
+**What it shows:** status, status text, elapsed ms, response headers, and the body — pretty
+JSON when it parses as JSON, raw text otherwise (truncated past 200KB).
+
+**Notes**
+- The pasted command's own `Authorization`/cookie headers are used as-is — Curl does not log
+  in with any `config.json` role account, so it works with a token you copied from anywhere.
+- Still goes through the same dev-host guard as every other module: the target host must be
+  the selected env's `apiBaseUrl` host or listed in that env's `allowedHosts`, or the request
+  is refused before it's sent.
 
 ## Env Preflight (read-only)
 

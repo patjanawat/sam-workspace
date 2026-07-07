@@ -71,8 +71,8 @@
   .action-card.active .action-glyph { background: var(--accent); color: #fff; }
 
   /* run button */
-  .run-btn { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; padding: 15px; border-radius: 11px; font: 600 17px 'IBM Plex Sans'; color: #98a2b3; background: #e4e7ec; cursor: not-allowed; transition: all .14s ease; }
-  .run-btn.ready { color: #fff; background: var(--accent); cursor: pointer; box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 34%, transparent); }
+  .run-btn { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; padding: 15px; border-radius: 11px; font: 600 17px 'IBM Plex Sans'; color: #98a2b3; background: #e4e7ec; cursor: not-allowed; transition: all .14s ease; position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -12px 16px -8px rgba(16,24,40,.10); }
+  .run-btn.ready { color: #fff; background: var(--accent); cursor: pointer; box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 34%, transparent), 0 -12px 16px -8px rgba(16,24,40,.10); }
   .run-btn.ready:hover { filter: brightness(1.05); }
   .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; animation: spin .6s linear infinite; flex: none; }
 
@@ -93,6 +93,17 @@
   .status-pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 20px; font: 600 15px 'IBM Plex Sans'; }
   .step-chip { display: flex; align-items: center; gap: 8px; padding: 6px 11px 6px 7px; border-radius: 9px; background: #fafbfc; border: 1px solid #eef0f3; }
   .raw-toggle { font: 500 14.5px 'IBM Plex Mono', monospace; color: #667085; cursor: pointer; list-style: none; user-select: none; }
+
+  /* inspector action confirm modal */
+  .insp-modal-overlay { position: fixed; inset: 0; background: rgba(16,20,27,.44); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .insp-modal-box { width: min(420px, 90vw); background: #fff; border-radius: 14px; padding: 20px 22px; box-shadow: 0 20px 48px rgba(16,24,40,.24); }
+  .insp-modal-title { font: 600 16.5px 'IBM Plex Sans'; color: #1a1d23; margin-bottom: 8px; }
+  .insp-modal-msg { font: 400 13.5px 'IBM Plex Sans'; color: #667085; line-height: 1.5; }
+  .insp-modal-reason { width: 100%; box-sizing: border-box; margin-top: 12px; font: 400 13.5px 'IBM Plex Sans'; border: 1px solid #e7e9ee; border-radius: 8px; padding: 9px 10px; resize: vertical; }
+  .insp-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  .insp-modal-btn { font: 600 13.5px 'IBM Plex Sans'; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+  .insp-modal-btn.cancel { background: #fff; border: 1px solid #e7e9ee; color: #475467; }
+  .insp-modal-btn.confirm { border: none; color: #fff; }
 </style>
 </head>
 <body>
@@ -207,6 +218,13 @@
         <div style="font:400 13px 'IBM Plex Sans'; color:#98a2b3; margin-top:6px; line-height:1.4;">email เป๊ะ, email บางส่วน, หรือชื่อบางส่วนก็ได้ — เจอคนแรกที่ match</div>
       </div>
 
+      <!-- Curl controls -->
+      <div id="curlSection" hidden>
+        <div class="section-title">Curl command</div>
+        <textarea id="curlInput" class="text-input" rows="6" spellcheck="false" aria-label="Curl command" style="font-family:'IBM Plex Mono',monospace; font-size:13px; resize:vertical;" placeholder="curl -X 'GET' 'https://web-sam-qa.manaosoftware.com/api/...' -H 'accept: application/json' -H 'Authorization: Bearer …'"></textarea>
+        <div style="font:400 13px 'IBM Plex Sans'; color:#98a2b3; margin-top:6px; line-height:1.4;">วาง curl ที่ copy จาก Swagger/devtools มาได้ตรง ๆ — token/host เป็นของ curl เอง ไม่ผูกกับ role account ที่ config ไว้ ยังผ่าน dev-host guard เดิม (host ต้องอยู่ใน allowedHosts)</div>
+      </div>
+
       <!-- X-ray controls -->
       <div id="xraySection" hidden>
         <div class="section-title">Screen</div>
@@ -285,8 +303,11 @@
         </div>
         <div id="resultSteps" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:15px;"></div>
         <details style="border-top:1px solid #eef0f3; padding-top:12px;">
-          <summary class="raw-toggle">▸ raw response</summary>
-          <div id="resultJson" style="margin-top:10px; background:#fafbfc; border:1px solid #eef0f3; border-radius:9px; padding:12px 14px; overflow-x:auto;"></div>
+          <summary class="raw-toggle" style="display:flex; align-items:center; gap:10px;">
+            <span style="flex:1;">▸ raw response</span>
+            <button type="button" id="copyResultJson" class="chip-btn">copy</button>
+          </summary>
+          <div id="resultJson" class="devkit-scroll" style="margin-top:10px; background:#fafbfc; border:1px solid #eef0f3; border-radius:9px; padding:12px 14px; max-height:48vh; overflow:auto;"></div>
         </details>
       </div>
 
@@ -294,6 +315,19 @@
       <div id="inspectReport" class="devkit-scroll" style="display:none; flex:1; min-height:0; overflow-y:auto; flex-direction:column; gap:16px;"></div>
     </section>
   </main>
+</div>
+
+<!-- Inspector who-can-approve action confirm modal (Approve / Reject) -->
+<div id="inspModalOverlay" class="insp-modal-overlay" style="display:none;">
+  <div class="insp-modal-box">
+    <div id="inspModalTitle" class="insp-modal-title"></div>
+    <div id="inspModalMsg" class="insp-modal-msg"></div>
+    <textarea id="inspModalReason" class="insp-modal-reason" rows="3" placeholder="Reason for reject (required)" aria-label="Reason for reject" style="display:none;"></textarea>
+    <div class="insp-modal-actions">
+      <button type="button" id="inspModalCancel" class="insp-modal-btn cancel">Cancel</button>
+      <button type="button" id="inspModalConfirm" class="insp-modal-btn confirm">Confirm</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -330,6 +364,7 @@
     { key: 'people', label: 'People', desc: 'Org chart, delegates, lockout, permissions', glyph: '⚇' },
     { key: 'sap-inspect', label: 'SAP Sync Inspector', desc: 'Compare main DB vs SAP staging', glyph: '⇄' },
     { key: 'preflight', label: 'Env Preflight', desc: 'Is this env ready to test?', glyph: '✈' },
+    { key: 'curl', label: 'Curl', desc: 'Paste & run a raw curl request', glyph: '⌁' },
   ];
   // Real backend contract: success / fail / '' (clear) / omitted (leave unchanged — sentinel)
   const SAP_OPTIONS = [
@@ -347,11 +382,12 @@
     { key: 'new-proposal', label: 'New proposal', desc: 'new RequestNo · version 0 · current month + 1 — Type R / S only' },
   ];
   let lastPayloadsRaw = {}; // {rebate,special,accum} raw column text — for the inspector's "view JSON" toggle
+  let lastResultObj = null; // the last showResult() payload — backs the "raw response" copy button
 
   // ---------- state ----------
   const state = {
     env: '',
-    envs: [],            // [{name, apiBaseUrl}]
+    envs: [],            // [{name, apiBaseUrl, roleEmails}]
     action: 'approve-through',
     sapStatus: '__leave__',
     pickerResults: [],
@@ -368,6 +404,8 @@
   const newContract = () => 'CN-' + new Date().getFullYear() + '-' + String(Math.floor(Math.random() * 900000) + 100000);
   const envDot = (name) => ENV_COLOR[name] || '#667085';
   const apiUrlOf = (name) => (state.envs.find((e) => e.name === name) || {}).apiBaseUrl || '';
+  // The single dev account devkit holds for a role — used to recognize "this who-can-approve row is me".
+  const configuredEmailFor = (role) => (state.envs.find((e) => e.name === state.env) || {}).roleEmails?.[role] || '';
   // web URL only derivable when apiBaseUrl ends with /api (e.g. https://host/api -> https://host)
   const webUrlOf = (name) => { const u = apiUrlOf(name); return /\/api\/?$/.test(u) ? u.replace(/\/api\/?$/, '') : ''; };
   const toB64Url = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -470,7 +508,8 @@
     const ppl = state.action === 'people';
     const sapx = state.action === 'sap-inspect';
     const pf = state.action === 'preflight';
-    const needsPicker = !ppl && !pf; // every module except People/Env Preflight needs a proposal
+    const cur = state.action === 'curl';
+    const needsPicker = !ppl && !pf && !cur; // every module except People/Env Preflight/Curl needs a proposal
     const hasSel = !!state.selectedProposal;
 
     $('pickerSection').hidden = !needsPicker;
@@ -482,8 +521,9 @@
     if (!clone) $('cloneSrcWarn').style.display = 'none';
     $('xraySection').hidden = !(xr && hasSel);
     $('peopleSection').hidden = !ppl;
+    $('curlSection').hidden = !cur;
     if (!insp && !xr && !ppl && !sapx && !pf) hideInspectReport();
-    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : ppl ? 'Run people lookup' : sapx ? 'Run SAP inspect' : pf ? 'Run preflight' : 'Run approve-through';
+    $('runLabel').textContent = clone ? 'Run clone → draft' : sap ? 'Run SAP fixup' : insp ? 'Run inspect' : xr ? 'Run X-ray' : ppl ? 'Run people lookup' : sapx ? 'Run SAP inspect' : pf ? 'Run preflight' : cur ? 'Run curl' : 'Run approve-through';
     if (clone && hasSel) syncCloneMode();
     if (needsPicker && !state.pickerLoaded && !state.running) loadPickerRecent();
     syncRun();
@@ -690,6 +730,7 @@
     if (state.running) return false;
     if (state.action === 'people') return $('peopleQuery').value.trim().length >= 2;
     if (state.action === 'preflight') return true;
+    if (state.action === 'curl') return $('curlInput').value.trim().length > 0;
     if (!state.selectedProposal) return false;
     if (state.action === 'sap-fixup' && state.sapStatus === '__leave__' && !$('contractNo').value.trim() && !$('mockStaging').checked) return false;
     return true;
@@ -825,6 +866,32 @@
   // Toggle raw JSON view for a payload chip (rebate/special/accum). Single
   // shared box below the chip row — reopening a different chip just swaps it.
   document.addEventListener('click', (e) => {
+    const approveBtn = e.target.closest('.insp-act-btn[data-act="approve"]');
+    if (approveBtn) {
+      const role = approveBtn.getAttribute('data-role');
+      openInspModal({
+        title: 'Approve this step?',
+        message: 'Acting as the configured ' + role + ' account (' + (configuredEmailFor(role) || 'no email configured') + '). This calls the real approve API.',
+        requireReason: false,
+        confirmLabel: 'Approve',
+        confirmColor: '#15803d',
+        onConfirm: () => actOnRow(role, true, ''),
+      });
+      return;
+    }
+    const rejectBtn = e.target.closest('.insp-act-btn[data-act="reject"]');
+    if (rejectBtn) {
+      const role = rejectBtn.getAttribute('data-role');
+      openInspModal({
+        title: 'Reject this step?',
+        message: 'Acting as the configured ' + role + ' account (' + (configuredEmailFor(role) || 'no email configured') + '). This calls the real reject API.',
+        requireReason: true,
+        confirmLabel: 'Reject',
+        confirmColor: '#b91c1c',
+        onConfirm: (reason) => actOnRow(role, false, reason),
+      });
+      return;
+    }
     if (e.target.closest('.pl-json-close')) {
       const box = $('plJsonBox');
       box.style.display = 'none';
@@ -946,6 +1013,12 @@
         else { txt = name + ': ' + (s.skippedReason || 'skipped'); c = '#a16207'; }
         steps.appendChild(stepChip('sap', txt, c));
       }
+    } else if (obj && typeof obj.status === 'number' && typeof obj.timeMs === 'number' && obj.headers) {
+      // curl-run: {status, statusText, timeMs, headers, bodyJson, bodyText, truncated}
+      const ok = obj.status >= 200 && obj.status < 400;
+      label = obj.status + ' ' + obj.statusText;
+      color = ok ? C.green : C.red;
+      meta = obj.timeMs + 'ms' + (obj.truncated ? ' · body truncated' : '');
     }
 
     $('resultLabel').textContent = label;
@@ -955,9 +1028,10 @@
     $('resultPill').style.color = fgMap[color] || '#667085';
     $('resultDot').style.background = fgMap[color] || '#667085';
     $('resultMeta').textContent = meta;
+    lastResultObj = obj;
     const json = $('resultJson');
     json.innerHTML = '';
-    json.appendChild(jsonHighlight(obj));
+    json.appendChild(jsonHighlight(deepParseJson(obj)));
     card.style.display = 'block';
     syncConsoleSplit(true);
   }
@@ -1058,10 +1132,26 @@
       whoBody = '<div style="font:600 13.5px \'IBM Plex Sans\'; margin-bottom:10px;">Current step: <span style="text-transform:uppercase;">' + escH(step.nextRole || '?') + '</span>'
         + (step.state === 'blocked' ? ' <span style="color:#b91c1c;">— blocked by status sentinel (see diagnosis)</span>' : '') + '</div>';
       if (who.sdmAutoDelegate) whoBody += '<div style="font:400 12.5px \'IBM Plex Sans\'; color:#a16207; background:rgba(210,153,34,.10); border:1px solid rgba(210,153,34,.25); border-radius:8px; padding:8px 11px; margin-bottom:10px;">ALL SDM users have an active delegation today — this step auto-approves on the next SAM action (IsDelegate=true), nobody needs to press anything.</div>';
-      whoBody += (who.rows || []).map((u) => '<div style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:9px; border:1px solid ' + (u.eligible ? 'color-mix(in srgb, var(--accent) 40%, #eef0f3)' : '#eef0f3') + '; background:' + (u.eligible ? 'color-mix(in srgb, var(--accent) 5%, #fff)' : '#fafbfc') + '; margin-bottom:8px;">'
-        + '<div><div style="font:600 13px \'IBM Plex Sans\'; color:#1a1d23;">' + escH(u.name) + '</div><div style="font:400 11.5px \'IBM Plex Mono\',monospace; color:#98a2b3;">' + escH(u.email) + '</div></div>'
-        + '<div style="margin-left:auto; font:400 12px \'IBM Plex Sans\'; color:' + (u.eligible ? '#15803d' : '#667085') + '; text-align:right; max-width:55%;">' + (u.eligible ? 'can approve now' : escH(u.reasons.join(' · '))) + '</div>'
-        + '</div>').join('') || '<div style="font:400 12.5px \'IBM Plex Sans\'; color:#98a2b3;">no users found for this role</div>';
+      const meEmail = configuredEmailFor(step.nextRole).toLowerCase();
+      let meMatched = false;
+      whoBody += (who.rows || []).map((u) => {
+        const isMe = u.eligible && meEmail && u.email.toLowerCase() === meEmail;
+        if (isMe) meMatched = true;
+        const rightHtml = isMe
+          ? ('<div class="insp-act-row" style="margin-left:auto; display:flex; align-items:center; gap:8px;">'
+            + '<span style="font:500 11px \'IBM Plex Sans\'; color:#98a2b3;">this is your configured account</span>'
+            + '<button type="button" class="insp-act-btn" data-act="approve" data-role="' + escH(step.nextRole) + '" style="border:1px solid #15803d; background:#fff; color:#15803d; font:600 12.5px \'IBM Plex Sans\'; padding:5px 12px; border-radius:7px; cursor:pointer;">Approve</button>'
+            + '<button type="button" class="insp-act-btn" data-act="reject" data-role="' + escH(step.nextRole) + '" style="border:1px solid #b91c1c; background:#fff; color:#b91c1c; font:600 12.5px \'IBM Plex Sans\'; padding:5px 12px; border-radius:7px; cursor:pointer;">Reject</button>'
+            + '</div>')
+          : ('<div style="margin-left:auto; font:400 12px \'IBM Plex Sans\'; color:' + (u.eligible ? '#15803d' : '#667085') + '; text-align:right; max-width:55%;">' + (u.eligible ? 'can approve now' : escH(u.reasons.join(' · '))) + '</div>');
+        return '<div style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:9px; border:1px solid ' + (u.eligible ? 'color-mix(in srgb, var(--accent) 40%, #eef0f3)' : '#eef0f3') + '; background:' + (u.eligible ? 'color-mix(in srgb, var(--accent) 5%, #fff)' : '#fafbfc') + '; margin-bottom:8px;">'
+          + '<div><div style="font:600 13px \'IBM Plex Sans\'; color:#1a1d23;">' + escH(u.name) + '</div><div style="font:400 11.5px \'IBM Plex Mono\',monospace; color:#98a2b3;">' + escH(u.email) + '</div></div>'
+          + rightHtml
+          + '</div>';
+      }).join('') || '<div style="font:400 12.5px \'IBM Plex Sans\'; color:#98a2b3;">no users found for this role</div>';
+      if ((who.rows || []).length && !meMatched && !who.sdmAutoDelegate) {
+        whoBody += '<div style="font:400 12px \'IBM Plex Sans\'; color:#98a2b3; margin-top:2px;">No action available here — the configured <b>' + escH(step.nextRole) + '</b> account' + (meEmail ? ' (' + escH(meEmail) + ')' : '') + ' is not in this list, or is not currently eligible.</div>';
+      }
     }
     html += inspCard('Who can approve right now', whoBody);
 
@@ -1542,6 +1632,9 @@
     } else if (state.action === 'preflight') {
       body = { env: state.env, module: 'preflight' };
       hideInspectReport();
+    } else if (state.action === 'curl') {
+      body = { env: state.env, module: 'curl-run', curl: $('curlInput').value };
+      hideInspectReport();
     } else {
       body = { env: state.env, proposalId, module: 'approve' };
     }
@@ -1594,6 +1687,87 @@
     }
   }
 
+  // ---------- inspector who-can-approve actions ----------
+  // Confirm modal shared by the Approve and Reject buttons on the "who can approve"
+  // panel. `onConfirm` runs after the user confirms (and, for reject, after a
+  // non-empty reason is given) — the modal closes once it settles.
+  function closeInspModal() {
+    $('inspModalOverlay').style.display = 'none';
+  }
+  function openInspModal({ title, message, requireReason, confirmLabel, confirmColor, onConfirm }) {
+    $('inspModalTitle').textContent = title;
+    $('inspModalMsg').textContent = message;
+    const reasonBox = $('inspModalReason');
+    reasonBox.style.display = requireReason ? 'block' : 'none';
+    reasonBox.value = '';
+    reasonBox.style.borderColor = '#e7e9ee';
+
+    const confirmBtn = $('inspModalConfirm');
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = confirmLabel;
+    confirmBtn.style.background = confirmColor;
+    confirmBtn.onclick = async () => {
+      let reason = '';
+      if (requireReason) {
+        reason = reasonBox.value.trim();
+        if (!reason) {
+          reasonBox.style.borderColor = '#b91c1c';
+          reasonBox.focus();
+          return;
+        }
+      }
+      confirmBtn.disabled = true;
+      $('inspModalCancel').disabled = true;
+      confirmBtn.textContent = 'Working…';
+      try {
+        await onConfirm(reason);
+      } finally {
+        closeInspModal();
+      }
+    };
+    $('inspModalCancel').disabled = false;
+    $('inspModalCancel').onclick = closeInspModal;
+    $('inspModalOverlay').style.display = 'flex';
+    if (requireReason) reasonBox.focus();
+  }
+  // Re-fetch `inspect` and redraw the report only — does not touch the console log,
+  // so the actOnRow() trail above stays visible.
+  async function refreshInspectSilently() {
+    if (!state.selectedProposal) return;
+    try {
+      const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: state.env, proposalId: state.selectedProposal.id, module: 'inspect' }) });
+      const text = await res.text();
+      for (const line of text.split('\n')) {
+        if (line.startsWith('RESULT ')) {
+          try { renderInspectReport(JSON.parse(line.slice(7))); } catch { /* leave prior report visible */ }
+        }
+      }
+    } catch { /* leave prior report visible — the action's own log line already explains what happened */ }
+  }
+  async function actOnRow(role, isApprove, reason) {
+    const proposalId = state.selectedProposal ? state.selectedProposal.id : '';
+    if (!proposalId) return;
+    try {
+      const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: state.env, module: 'inspector-act', proposalId, role, isApprove, reason }) });
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split('\n');
+        buf = parts.pop();
+        for (const line of parts) if (line.trim()) appendLine(line);
+      }
+      if (buf.trim()) appendLine(buf);
+    } catch (e) {
+      appendLine('ERROR ' + e.message);
+    } finally {
+      await refreshInspectSilently();
+    }
+  }
+
   // ---------- wire up ----------
   $('contractNo').addEventListener('input', syncRun);
   $('mockStaging').addEventListener('change', syncRun);
@@ -1604,8 +1778,14 @@
   $('copyUrl').onclick = () => copyText(apiUrlOf(state.env), $('copyUrl'));
   $('copyConsole').onclick = () => copyText(state.rawLog.join('\n'), $('copyConsole'));
   $('clearConsole').onclick = clearConsole;
+  $('copyResultJson').addEventListener('click', (e) => {
+    e.preventDefault(); // this button lives inside <summary> — don't toggle the <details> too
+    e.stopPropagation();
+    copyText(JSON.stringify(lastResultObj, null, 2), $('copyResultJson'));
+  });
   $('runBtn').onclick = run;
   $('peopleQuery').addEventListener('input', syncRun);
+  $('curlInput').addEventListener('input', syncRun);
   $('peopleQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter' && canRun()) run(); });
   Array.prototype.forEach.call(document.querySelectorAll('#xrayRoleSeg .seg-btn'), (b) => {
     b.addEventListener('click', () => {

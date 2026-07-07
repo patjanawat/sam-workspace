@@ -14,15 +14,34 @@ function validateProfile(p, label) {
   }
 }
 
-// Non-secret env summary for the UI dropdown (names + apiBaseUrl only — never passwords/roles).
+// role -> email only (never password) — lets the UI recognize "this row is the configured account".
+function roleEmailsOf(roles) {
+  const out = {};
+  for (const r of REQUIRED_ROLES) out[r] = roles?.[r]?.email ?? '';
+  return out;
+}
+
+// Non-secret env summary for the UI dropdown (names + apiBaseUrl + role emails only — never passwords).
 export function listEnvironments(raw) {
   if (raw && raw.environments && typeof raw.environments === 'object') {
     const names = Object.keys(raw.environments);
     if (!names.length) throw new Error('config.json: environments is empty');
     const defaultEnv = raw.defaultEnv && names.includes(raw.defaultEnv) ? raw.defaultEnv : names[0];
-    return { envNames: names, defaultEnv, environments: names.map((n) => ({ name: n, apiBaseUrl: raw.environments[n]?.apiBaseUrl ?? '' })) };
+    return {
+      envNames: names,
+      defaultEnv,
+      environments: names.map((n) => ({
+        name: n,
+        apiBaseUrl: raw.environments[n]?.apiBaseUrl ?? '',
+        roleEmails: roleEmailsOf(raw.environments[n]?.roles),
+      })),
+    };
   }
-  return { envNames: ['default'], defaultEnv: 'default', environments: [{ name: 'default', apiBaseUrl: raw?.apiBaseUrl ?? '' }] };
+  return {
+    envNames: ['default'],
+    defaultEnv: 'default',
+    environments: [{ name: 'default', apiBaseUrl: raw?.apiBaseUrl ?? '', roleEmails: roleEmailsOf(raw?.roles) }],
+  };
 }
 
 // Resolve one environment to a flat profile the rest of the app already understands.
