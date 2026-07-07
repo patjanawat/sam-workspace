@@ -11,11 +11,11 @@ const esc = (v) => String(v).replace(/'/g, "''");
 
 // ProposalGroupId letter → staging flow (ResendSapSyncListCommandHandler.cs)
 export const FLOW_BY_TYPE = { R: 'CreateDiscount', P: 'CreateContract', S: 'ChangeContract' };
-const GROUP_LETTER = { 1: 'P', 2: 'R', 3: 'S' };
+export const GROUP_LETTER = { 1: 'P', 2: 'R', 3: 'S' };
 
 // SAP_RETURN success value per flow — NOT interchangeable across flows.
-const SUCCESS_VALUE = { CreateDiscount: '0', CreateContract: 'C', ChangeContract: 'S' };
-const TABLE_BY_FLOW = { CreateDiscount: 'CreateDiscount', CreateContract: 'CreateContract', ChangeContract: 'ChangeContract' };
+export const SUCCESS_VALUE = { CreateDiscount: '0', CreateContract: 'C', ChangeContract: 'S' };
+export const TABLE_BY_FLOW = { CreateDiscount: 'CreateDiscount', CreateContract: 'CreateContract', ChangeContract: 'ChangeContract' };
 
 export function decodeIndicator(flow, sapReturn) {
   if (!(flow in SUCCESS_VALUE)) throw new Error(`Unknown SAP flow "${flow}"`);

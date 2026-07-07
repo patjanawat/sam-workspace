@@ -63,6 +63,19 @@ Hosts not covered by an env profile (or its explicit `allowedHosts`) are still r
 **Backward compatible:** a flat config — `{ apiBaseUrl, roles, db, allowedHosts }` with no
 `environments` key — still works exactly as before, as an implicit single `"default"` environment.
 
+## Proposal picker
+
+Every module except **People** and **Env Preflight** shares one proposal picker:
+
+- Opens auto-loaded with the **10 most recently created proposals** (`CreatedDateUTC DESC`).
+- **Search** a `RequestNo` (min 2 chars) to look up a specific proposal instead; **reload**
+  returns to the top-10 view.
+- Row actions (copy id / open in the web app) and each module's own controls — Clone's mode
+  picker, SAP fixup's status/contract fields, X-ray's screen/role/verify controls — only appear
+  once you **click a row** to select it.
+- After running any module, the list **refetches** and re-selects the same row if it's still
+  present, so you immediately see its updated state (new Draft, new SAPStatus, etc.).
+
 ## Prerequisites (dev env)
 - Role accounts for `srp, sam, sdm, pte, cdr` that log in.
 - **Approve-through:** the `sam` account must be allowed to see the proposal — it must own the
@@ -109,6 +122,23 @@ or seed a contract number.
   and not explicitly listed is still refused, so production stays protected.
 - Status and contract are independent writes across two DBs — partial success is possible and reported per step.
 
+**Mock staging row** (checkbox, run before status/contract)
+- For QA/dev environments that can't reach real SAP (`EnvironmentHelper.IsClient` false → `SapSyncServiceFallback`
+  in the BE, or a real-code-path bug that left `SAPStatus=success` with 0 staging rows — see `sap-inspect`).
+- `MERGE`s one staging row per line item into the table matching the proposal's type (`CreateContract` /
+  `CreateDiscount` / `ChangeContract`) using the **same source join** as `SapGenerateService.cs` — real
+  `ProposalProductTypeP`/`RS` + `ProposalCustomer` + `Proposal` data, so every field except the SAP outcome is valid.
+- Only `SAP_RETURN` is mocked — stamped straight to that flow's success value (`C`/`0`/`S`), no RFC call ever made.
+  `SAP_MESSAGE` is stamped `"MOCKED by sam-devkit -- no real SAP call"` so the row is identifiable later.
+- **Safe to re-run**: matched by the same natural key the real generate SQL uses (proposal + soldto/material/
+  valid-from/valid-to, or contract no for `ChangeContract`). If no row exists yet → insert. If a row exists **and
+  its `SAP_MESSAGE` already carries the mock marker** → refresh it (new `SAP_RETURN`/timestamp). If a row exists
+  from a **real** SAP attempt (no marker — real success, real failure, real pending) → left untouched, reported as
+  0 rows affected. A real SAP error is never silently papered over by a QA mock.
+- 0 rows affected can also mean the source data (`ProposalProductTypeP`/`RS` + `ProposalCustomer`) is missing for
+  that proposal — check `sap-inspect` / `xray-overview` first if unsure which case you hit.
+- Does not implement contract **amendment** paths (Type P `PreviousId` set) — new proposals only.
+
 ## Clone → Draft (direct DB — dev only)
 
 Copy an existing proposal into a new **Draft** — including all detail rows — without
@@ -142,15 +172,15 @@ copied.
 - The DB guard is the same as SAP fixup (`localhost` / `db.allowedServers` only).
 - Direct DB insert skips the CustomerGroup-availability check (1 Draft/Pending per group per
   period) — acceptable for a dev tool, but the FE may show overlapping drafts.
-- The new proposal id lands in the **recent list**, so you can immediately run Approve-through on it.
-- Each search row has an **Action** column — copy the proposal id, or open the proposal in the web app.
-- After a successful clone the search box switches to the result's `RequestNo` and the list
-  **auto-refreshes**, so the fresh Draft shows up immediately (both modes).
+- Clone uses the shared proposal picker (see above) — pick the source row there, then the mode
+  and RequestNo controls appear below it.
+- After a successful clone, the picker refetches and the fresh Draft shows up immediately, still
+  selected, so you can switch straight to Approve-through on it.
 
 ## Inspector (direct DB — read-only)
 
 X-ray one proposal to answer "where is it stuck and why" without opening SSMS.
-Paste a proposal id (or pick one from the recent list) and run — everything is
+Pick a proposal from the shared picker (see above) and run — everything is
 `SELECT`-only through the same `db` config + dev-host guard as SAP fixup.
 
 **What it shows**

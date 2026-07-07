@@ -60,6 +60,28 @@ SELECT ISNULL(@j, '[]');`;
   return { proposals };
 }
 
+export async function recentProposals({ db, readWide = runSqlWide, log = () => {} }) {
+  assertDevDbServer(db.server, db.allowedServers);
+
+  const sam = { server: db.server, ...db.sam };
+  log('[kit] recent Proposal — top 10 by CreatedDateUTC desc');
+  const sql = `SET NOCOUNT ON;
+DECLARE @j NVARCHAR(MAX) = (
+  SELECT TOP 10
+    CONVERT(NVARCHAR(36), p.Id) AS id, p.RequestNo AS requestNo, p.Version AS version,
+    p.ProposalGroupId AS groupId, p.ProposalStatus AS status, ISNULL(p.SAPStatus,'') AS sapStatus,
+    p.[Year] AS [year], p.[Month] AS [month], p.CustomerGroupCode AS customerGroup,
+    CONVERT(NVARCHAR(36), p.PreviousId) AS previousId
+  FROM dbo.Proposal p
+  ORDER BY p.CreatedDateUTC DESC
+  FOR JSON PATH);
+SELECT ISNULL(@j, '[]');`;
+  const out = await readWide({ ...sam, sql });
+  const proposals = JSON.parse(out || '[]');
+  log(`[kit] found ${proposals.length} recent proposal${proposals.length === 1 ? '' : 's'}`);
+  return { proposals };
+}
+
 // Replicates RequestNoGeneratorService: {orgInitial}-{saleOffice}-{groupLetter}{yy}{run:5} with
 // yy = Thai-timezone CE year % 100 and run = MAX(existing 5-digit tail under the prefix) + 1.
 export async function generateRequestNo({ db, source, run = runSql, now, log = () => {} }) {

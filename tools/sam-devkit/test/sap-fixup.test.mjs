@@ -162,6 +162,44 @@ test('payload step failure is isolated — status still applied', async () => {
   assert.match(r.payload.error, /read boom/);
 });
 
+test('mockStaging inserts a staging row before status/contract run', async () => {
+  // [groupId lookup (mock)=1(P), mock insert rows=1, status update rows=1, groupId lookup (contract)=1(P), contract update rows=1]
+  const { run, calls } = runner(['1', '1', '1', '1', '1']);
+  const r = await setSapState({
+    db, proposalId: GUID, sapStatus: 'success', contractNo: 'C-500', mockStaging: true,
+    run, readWide: async () => '',
+  });
+  assert.equal(r.mockStaging.applied, true);
+  assert.equal(r.mockStaging.rowsInserted, 1);
+  assert.equal(r.mockStaging.table, 'CreateContract');
+  assert.equal(r.status.applied, true);
+  assert.equal(r.contract.applied, true);
+  assert.match(calls[0].sql, /SELECT ProposalGroupId FROM dbo\.Proposal/); // mock's own lookup runs first
+  assert.match(calls[1].sql, /MERGE \[SapDb\]\.dbo\.CreateContract AS tgt/);
+});
+
+test('mockStaging alone (no sapStatus/contractNo) is not "nothing to update"', async () => {
+  const { run } = runner(['1', '1']);
+  const r = await setSapState({ db, proposalId: GUID, mockStaging: true, run, readWide: async () => '' });
+  assert.equal(r.mockStaging.applied, true);
+  assert.equal(r.status.applied, false);
+  assert.equal(r.contract.applied, false);
+});
+
+test('mockStaging failure is isolated — status still applies', async () => {
+  let n = 0;
+  const run = async ({ sql }) => {
+    n++;
+    if (/SELECT ProposalGroupId FROM dbo\.Proposal/.test(sql)) throw new Error('mock lookup boom');
+    if (/UPDATE Proposal SET SAPStatus/.test(sql)) return '1';
+    return '0';
+  };
+  const r = await setSapState({ db, proposalId: GUID, sapStatus: 'success', mockStaging: true, run, readWide: async () => '' });
+  assert.equal(r.mockStaging.applied, false);
+  assert.match(r.mockStaging.error, /mock lookup boom/);
+  assert.equal(r.status.applied, true);
+});
+
 test('no contract → payload step does not run', async () => {
   let readWideCalled = false;
   const { run } = runner(['1']);

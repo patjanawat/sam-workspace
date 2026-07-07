@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { searchProposals, generateRequestNo, cloneProposal } from '../lib/clone-proposal.mjs';
+import { searchProposals, recentProposals, generateRequestNo, cloneProposal } from '../lib/clone-proposal.mjs';
 
 const SRC = '11111111-1111-1111-1111-111111111111';
 const db = {
@@ -53,6 +53,25 @@ test('search escapes LIKE wildcards in the term', async () => {
 test('search rejects short and unsafe terms', async () => {
   await assert.rejects(() => searchProposals({ db, requestNo: 'R' }), /too short/i);
   await assert.rejects(() => searchProposals({ db, requestNo: "R'; DROP" }), /Invalid search term/i);
+});
+
+// ---------- recentProposals ----------
+
+test('recent queries sam db, no WHERE/term, orders by CreatedDateUTC desc, top 10', async () => {
+  const h = harness({ wideOuts: [JSON.stringify([{ id: SRC, requestNo: 'J-S001-R2600013', version: 2 }])] });
+  const r = await recentProposals({ db, readWide: h.readWide });
+  assert.equal(r.proposals.length, 1);
+  assert.equal(h.calls.wide[0].database, 'SamDb');
+  assert.match(h.calls.wide[0].sql, /TOP 10/);
+  assert.match(h.calls.wide[0].sql, /ORDER BY p\.CreatedDateUTC DESC/);
+  assert.doesNotMatch(h.calls.wide[0].sql, /WHERE/);
+  assert.match(h.calls.wide[0].sql, /FOR JSON PATH/);
+});
+
+test('recent returns empty array when DB has no rows', async () => {
+  const h = harness({ wideOuts: ['[]'] });
+  const r = await recentProposals({ db, readWide: h.readWide });
+  assert.deepEqual(r.proposals, []);
 });
 
 // ---------- generateRequestNo ----------

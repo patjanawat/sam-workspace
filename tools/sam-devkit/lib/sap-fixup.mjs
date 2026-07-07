@@ -2,6 +2,7 @@ import { assertDevDbServer } from './guard.mjs';
 import { runSql, runSqlFile, runSqlWide } from './db.mjs';
 import { upsertContractForAllProducts } from './json-contract.mjs';
 import { writeTempSql } from './temp-sql.mjs';
+import { mockStagingRow } from './sap-mock-staging.mjs';
 
 const GUID_RE = /^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
 const STATUS_VALUES = new Set(['success', 'fail', '']);
@@ -17,19 +18,20 @@ const esc = (v) => String(v).replace(/'/g, "''");
 const rows = (out) => Number(String(out).trim()) || 0;
 
 export async function setSapState({
-  db, proposalId, sapStatus, contractNo,
+  db, proposalId, sapStatus, contractNo, mockStaging = false,
   run = runSql, runFile = runSqlFile, readWide = runSqlWide, writeTemp = writeTempSql, log = () => {},
 }) {
   if (!GUID_RE.test(proposalId || '')) throw new Error(`Invalid proposalId (must be GUID): ${proposalId}`);
   const hasStatus = sapStatus !== undefined;
   const hasContract = contractNo !== undefined && contractNo !== null && contractNo !== '';
-  if (!hasStatus && !hasContract) throw new Error('nothing to update: provide sapStatus and/or contractNo');
+  if (!hasStatus && !hasContract && !mockStaging) throw new Error('nothing to update: provide sapStatus, contractNo, and/or mockStaging');
   if (hasStatus && !STATUS_VALUES.has(sapStatus)) throw new Error(`Invalid sapStatus "${sapStatus}" (expected success, fail, or "")`);
   if (hasContract && !CONTRACT_RE.test(contractNo)) throw new Error(`Invalid contractNo "${contractNo}"`);
 
   assertDevDbServer(db.server, db.allowedServers);
 
   const result = {
+    mockStaging: { applied: false, rowsInserted: 0 },
     status: { applied: false, rows: 0 },
     contract: { applied: false, table: null, rows: 0, skippedReason: null },
     payload: { applied: false, rows: 0, updated: 0, skippedReason: null },
@@ -37,6 +39,18 @@ export async function setSapState({
   const sam = { server: db.server, ...db.sam };
   const sap = { server: db.server, ...db.sap };
   const id = esc(proposalId);
+
+  // Insert the mocked staging row FIRST — the contract/payload UPDATEs below
+  // assume a staging row already exists (they no-op on 0 matched rows).
+  if (mockStaging) {
+    try {
+      const r = await mockStagingRow({ db, proposalId, run, log });
+      result.mockStaging = { applied: true, ...r };
+    } catch (e) {
+      result.mockStaging = { applied: false, rowsInserted: 0, error: e.message };
+      log(`  mock staging FAILED: ${e.message}`);
+    }
+  }
 
   if (hasStatus) {
     try {
