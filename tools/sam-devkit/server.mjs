@@ -18,6 +18,8 @@ import { runPreflight } from './lib/preflight.mjs';
 import permissionsSnapshot from './lib/permissions-snapshot.json' with { type: 'json' };
 import { createClient } from './lib/sam-client.mjs';
 import { approveThrough } from './lib/approve-through.mjs';
+import { actOnStep } from './lib/approval-step.mjs';
+import { parseCurl, runCurl } from './lib/curl-run.mjs';
 import { fetchFeVersion } from './lib/fe-version.mjs';
 import pkg from './package.json' with { type: 'json' };
 
@@ -264,6 +266,41 @@ async function handleRun(req, res) {
         newRequestNo: input.newRequestNo,
         log,
       });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'inspector-act') {
+    try {
+      if (!input.proposalId) throw new Error('no proposalId to act on');
+      const account = cfg.roles?.[input.role];
+      if (!account) throw new Error(`no configured account for role "${input.role}"`);
+      assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
+      const client = createClient({ baseUrl: cfg.apiBaseUrl });
+      const r = await actOnStep({
+        client,
+        account,
+        role: input.role,
+        proposalId: input.proposalId,
+        isApprove: Boolean(input.isApprove),
+        reason: input.reason,
+        log,
+      });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'curl-run') {
+    try {
+      const parsed = parseCurl(input.curl || '');
+      const r = await runCurl({ ...parsed, allowedHosts: cfg.allowedHosts, log });
       res.write('RESULT ' + JSON.stringify(r) + '\n');
     } catch (e) {
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
