@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildBaseline, collapseLastPagePerSection, computeCurrent, computeSummaryFooter, xraySummary,
+  buildBaseline, collapseLastPagePerSection, computeCurrent, computeSummaryFooter, computePageFooters, xraySummary,
 } from '../lib/xray-summary.mjs';
 
 // ---------------------------------------------------------------- baseline --
@@ -120,6 +120,55 @@ test('computeSummaryFooter: added pages excluded from the old-fallback', () => {
   const f = computeSummaryFooter({ payloadJson: payload, prevRows: null });
   assert.equal(f.perProduct[0].current, 12);   // current DOES include added pages
   assert.equal(f.perProduct[0].latest, 3);     // old-fallback skips added pages (SAM-1767)
+});
+
+// -------------------------------------------------------- this-page footer --
+
+test('computePageFooters: current = max(new) across sections; latest = pmLastStep + discount old', () => {
+  const payload = wrapper([
+    pageOf(1, [
+      sec('normalRebate', [srow([val('P1', 80, 120)])], { pmLastStep: [{ productId: 'P1', value: 50 }] }),
+      sec('discountHeader', [srow([val('P1', 5, 10)], null)]),
+    ]),
+  ]);
+  const [p1] = computePageFooters(payload);
+  const row = p1.perProduct.find((x) => x.productId === 'P1');
+  assert.equal(row.current, 120 + 10);
+  assert.equal(row.latest, 50 + 5);
+  assert.equal(row.changed, 130 - 55);
+});
+
+test('computePageFooters: per-page grain — page 2 does not inherit page 1\'s section values', () => {
+  const payload = wrapper([
+    pageOf(1, [sec('normalRebate', [srow([val('P1', 3, 100)])], { pmLastStep: [{ productId: 'P1', value: 3 }] })]),
+    pageOf(2, [sec('freightRebate', [srow([val('P1', 1, 9)])], { pmLastStep: [{ productId: 'P1', value: 1 }] })]),
+  ]);
+  const [p1, p2] = computePageFooters(payload);
+  assert.equal(p1.perProduct[0].current, 100);
+  assert.equal(p2.perProduct[0].current, 9);   // not 109 — this page's own sections only
+});
+
+test('computePageFooters: added page forces latest = 0 even with copied old/pmLastStep values (SAM-1803)', () => {
+  const payload = wrapper([
+    pageOf(2, [
+      sec('normalRebate', [srow([val('P1', 40, 100)])], { pmLastStep: [{ productId: 'P1', value: 40 }] }),
+      sec('discountHeader', [srow([val('P1', 5, 10)], null)]),
+    ], { isAddedPage: true }),
+  ]);
+  const [p2] = computePageFooters(payload);
+  const row = p2.perProduct.find((x) => x.productId === 'P1');
+  assert.equal(row.current, 110);
+  assert.equal(row.latest, 0);
+  assert.equal(row.changed, 110);
+});
+
+test('computePageFooters: deleted pages are dropped entirely', () => {
+  const payload = wrapper([
+    pageOf(1, [sec('normalRebate', [srow([val('P1', 1, 5)])])]),
+    pageOf(2, [sec('normalRebate', [srow([val('P1', 1, 5)])])], { deleted: true }),
+  ]);
+  const pages = computePageFooters(payload);
+  assert.deepEqual(pages.map((p) => p.pageNumber), [1]);
 });
 
 // ----------------------------------------------------------- orchestration --

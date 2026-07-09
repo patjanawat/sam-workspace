@@ -93,6 +93,12 @@ Every module except **People** and **Env Preflight** shares one proposal picker:
 - CDR approval is async (Hangfire) — the tool reports the `jobId`; SAP sync completes in the background.
 - ⚠️ Not yet fully exercised against a live SAM API — the test suite is unit-only (fake fetch).
   Verify approve-through / SAP fixup against your dev backend before relying on it.
+- All SQL reads/writes go through `sqlcmd -u -o <tempfile>` (see `lib/db.mjs`), not stdout. Thai/
+  non-ASCII text otherwise comes back as literal `?` — sqlcmd converts console-attached stdout
+  through the OS ANSI codepage regardless of `-f`/`-u`, and English Windows can't represent Thai.
+  Only writing to a real file with `-u` (true UTF-16LE) reads back correctly — confirmed
+  deterministic across repeated live-DB runs; stdout capture was not. Don't "simplify" this back
+  to stdout capture without re-testing against real Thai data.
 
 ## SAP fixup (direct DB — dev only)
 
@@ -180,11 +186,12 @@ copied.
 - After a successful clone, the picker refetches and the fresh Draft shows up immediately, still
   selected, so you can switch straight to Approve-through on it.
 
-## Inspector (direct DB — read-only, + one write path)
+## Inspector (direct DB — read-only, + three write paths)
 
 X-ray one proposal to answer "where is it stuck and why" without opening SSMS.
 Pick a proposal from the shared picker (see above) and run — everything is
-`SELECT`-only through the same `db` config + dev-host guard as SAP fixup.
+`SELECT`-only through the same `db` config + dev-host guard as SAP fixup,
+except the three write paths below.
 
 **What it shows**
 - **Header** — status decoded (incl. the `10` in-progress sentinel), Type P=1/R=2/S=3,
@@ -206,15 +213,47 @@ Pick a proposal from the shared picker (see above) and run — everything is
   (another Draft/Pending on the same CG this period), past-month clone rule.
 - **Payloads** — decodes the double-encoded rebate/special/accum JSON: schemaVersion,
   active/deleted pages, product ids, contract values.
+- **Rebate footer · This Page** — Type R/S only. Per-page Current/Latest/Changed, mirrored
+  from `RebateWrapper.tsx` `calcSumFor`/`calcLatestSum`: Current = max(new) per section on
+  that page only; Latest = Σ stored `meta.pmLastStep` per section + discountHeader's own
+  `old` value. Added pages (clone, no counterpart) force Latest = 0 regardless of copied
+  old/pmLastStep values (SAM-1803) — this is a **different grain** from the Summary footer
+  below (per-page vs whole-proposal); don't confuse the two.
+- **Summary footer of proposal** — the real Request › Summary footer (Current/Latest
+  Approved/Changed), same computation as the X-ray tile's "Summary" screen
+  (`rebate-footer.mapper.tsx` `accumulateMaxBySection` for Current; previous proposal's
+  `ProposalProductTypeRS` baseline, recomputed BE-side, for Latest). Constant — editing the
+  current draft never moves Latest.
+- **P.M. Max — stored vs expected** — same computation as the X-ray tile's "P.M. Max"
+  screen: compares `meta.pmLastStep` stored in the saved payload against what the BE would
+  inject today (`InjectPmMaxBaseline`). Mismatched cells are flagged `STALE` — the
+  SAM-1810 family of bugs, caught per (page, section, product).
 - **Related rows** — ProposalCustomer / ProposalProduct / ProposalFile (MinIO keys).
+- **Copy buttons** — small ⧉ next to `RequestNo` and next to the proposal id chip in the
+  header, copy the full value to clipboard.
+- **Mark Draft** — header button, shown only when status is `Temp(0)`. Flips
+  `ProposalStatus` straight to `Draft(1)` in the DB. There is no API for this: the real
+  backend only does it as a side effect of `PATCH /proposals/{id}/general-info`, which
+  needs the full general-info payload — too risky for devkit to reconstruct, so it's a
+  direct column write instead (same dev-host guard as SAP fixup/unlock). Useful because
+  the Hangfire cleanup job (`POST /proposals/delete-inactive/jobs`) deletes **every**
+  Temp(0) row with no age filter whenever it runs.
+- **Delete** — header button, shown only when status is `Draft(1)`. Calls the real API
+  (`DELETE /requests/{id}`), which is already server-gated to `Draft` status (a mismatched
+  status is a silent no-op, not an error). Hard delete — cascades via DB foreign keys to
+  `ProposalDetail`, `ProposalCustomer`, `ProposalProduct`, `ProposalProductTypeP/RS`,
+  `ProposalFile`, and `ApprovalHistory`. Cannot be undone. The endpoint has no ownership
+  check, so devkit logs in as the first role configured in `config.json`
+  (`srp → sam → sdm → pte → cdr`) rather than one hardcoded role.
 
 **Notes**
 - Requires the `db` block in `config.json` (same as SAP fixup).
-- Everything except the "who can approve" Approve/Reject buttons is read-only (`SELECT`
-  through `db`, same dev-host guard as SAP fixup). Those two buttons only appear when a
-  role account is configured in `config.json` and matches a row in the list; without
-  role accounts configured, Inspector stays fully read-only. To fix anything else it
-  finds, use SAP fixup / Clone / SQL by hand.
+- Everything except **Approve**/**Reject**/**Mark Draft**/**Delete** is read-only (`SELECT`
+  through `db`, same dev-host guard as SAP fixup). Approve/Reject only appear when a role
+  account is configured in `config.json` and matches a row in the list; without role
+  accounts configured, Inspector stays read-only except Mark Draft/Delete (which need the
+  `db` block, not role accounts — Delete additionally needs at least one role account to
+  log in with). To fix anything else it finds, use SAP fixup / Clone / SQL by hand.
 
 ## Overview X-ray (direct DB — read-only)
 

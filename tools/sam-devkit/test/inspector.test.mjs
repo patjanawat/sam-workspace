@@ -430,6 +430,66 @@ test('inspectProposal wires everything: header, lineage, step, who, diagnosis, p
   assert.equal(r.payloads.special.raw, '');
   assert.equal(r.payloads.special.activePages, undefined);
   assert.equal(r.related.customers[0].code, 'C000112');
+  assert.equal(r.rebateFooter, null); // Type P — no rate sections, no footer/pmMax
+});
+
+test('inspectProposal wires rebateFooter (pages/summary/pmMax) for Type R', async () => {
+  const rsHeader = { ...HEADER, groupId: 2, previousId: 'prev0', requestNo: 'J-S001-R2600005' };
+  const rebatePayload = JSON.stringify({
+    schemaVersion: 2,
+    pages: [{
+      pageNumber: 1,
+      payload: JSON.stringify([
+        {
+          section: 'normalRebate',
+          meta: { pmLastStep: [{ productId: 'P100', value: 50 }] },
+          rows: [{ range: { from: 0, to: 100 }, values: [{ productId: 'P100', new: 120, old: 80 }] }],
+        },
+        {
+          section: 'discountHeader',
+          rows: [{ range: null, values: [{ productId: 'P100', new: 10, old: 5 }] }],
+        },
+      ]),
+    }],
+  });
+  const routes = [
+    [/WITH chain/i, JSON.stringify([{ id: GUID, previousId: 'prev0', requestNo: rsHeader.requestNo, version: 1, status: 2 }])],
+    [/SELECT TOP 1[\s\S]*FROM dbo\.Proposal p/, JSON.stringify(rsHeader)],
+    [/FROM dbo\.ApprovalHistory/, JSON.stringify([])],
+    [/FROM \[identity\]\.AspNetUsers[\s\S]*RoleCode IN/, JSON.stringify([])],
+    [/FROM dbo\.UserDelegate/, JSON.stringify([])],
+    [/FROM dbo\.CloseMonth/, JSON.stringify([])],
+    [/cg-conflict|ProposalStatus IN \(1, ?2\)/, JSON.stringify([])],
+    [/SELECT RebatePayload/, rebatePayload],
+    [/SELECT SpecialPayload/, ''],
+    [/SELECT AccumPayload/, ''],
+    [/FROM dbo\.ProposalProductTypeRS/, JSON.stringify([{ productCode: 'P100', rateType: 'NR1', page: 1, rate: 60 }])],
+    [/proposalCustomers|FROM dbo\.ProposalCustomer/, JSON.stringify({ customers: [], products: [], files: [] })],
+  ];
+  const { readWide, calls } = reader(routes);
+  const r = await inspectProposal({ db: DB, proposalId: GUID, readWide, now: () => Date.parse('2026-07-04T10:00:00Z') });
+
+  assert.ok(calls.some((sql) => /FROM dbo\.ProposalProductTypeRS/.test(sql)));
+
+  // This Page footer: current = normalRebate max(new)=120 + discountHeader max(new)=10
+  //                    latest  = normalRebate pmLastStep=50 + discountHeader old=5
+  assert.equal(r.rebateFooter.pages.length, 1);
+  const pf = r.rebateFooter.pages[0].perProduct.find((x) => x.productId === 'P100');
+  assert.equal(pf.current, 130);
+  assert.equal(pf.latest, 55);
+  assert.equal(pf.changed, 75);
+
+  // Proposal summary footer: current same 130; latest = recomputed baseline (normalRebate only, no Discount rate row) = 60
+  const sf = r.rebateFooter.summary.perProduct.find((x) => x.productId === 'P100');
+  assert.equal(sf.current, 130);
+  assert.equal(sf.latest, 60);
+  assert.equal(r.rebateFooter.summary.baselineUsed, 'recomputed');
+
+  // P.M. Max: stored (meta.pmLastStep=50) vs expected (baseline=60) → mismatch surfaced
+  const pm = r.rebateFooter.pmMax.find((x) => x.section === 'normalRebate' && x.productId === 'P100');
+  assert.equal(pm.stored, 50);
+  assert.equal(pm.expected, 60);
+  assert.equal(pm.match, false);
 });
 
 test('inspectProposal throws when proposal not found', async () => {

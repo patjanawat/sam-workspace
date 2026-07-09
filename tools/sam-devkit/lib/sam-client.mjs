@@ -47,5 +47,6 @@ export function createClient({ baseUrl, fetchImpl = globalThis.fetch }) {
     post: (path, token, body) => raw('POST', path, { token, body }),
     put: (path, token, body) => raw('PUT', path, { token, body }),
     patch: (path, token, body) => raw('PATCH', path, { token, body }),
+    delete: (path, token) => raw('DELETE', path, { token }),
   };
 }

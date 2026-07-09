@@ -9,6 +9,8 @@ import { setSapState } from './lib/sap-fixup.mjs';
 import { setProposalContract } from './lib/proposal-contract.mjs';
 import { searchProposals, recentProposals, cloneProposal } from './lib/clone-proposal.mjs';
 import { inspectProposal } from './lib/inspector.mjs';
+import { markProposalDraft } from './lib/mark-draft.mjs';
+import { deleteProposal } from './lib/proposal-delete.mjs';
 import { xrayOverview } from './lib/xray-overview.mjs';
 import { xraySummary } from './lib/xray-summary.mjs';
 import { orgLookup, unlockUser, permissionMatrix } from './lib/org-lookup.mjs';
@@ -121,6 +123,30 @@ async function handleRun(req, res) {
       res.write('RESULT ' + JSON.stringify(r) + '\n');
     } catch (e) {
       res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'inspector-mark-draft') {
+    try {
+      const db = loadDbConfig(cfg);
+      const r = await markProposalDraft({ db, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}\n`);
+    }
+    return res.end();
+  }
+
+  if (module === 'inspector-delete') {
+    try {
+      assertDevHost(cfg.apiBaseUrl, cfg.allowedHosts);
+      const client = createClient({ baseUrl: cfg.apiBaseUrl });
+      const r = await deleteProposal({ client, accounts: cfg.roles, proposalId: input.proposalId, log });
+      res.write('RESULT ' + JSON.stringify(r) + '\n');
+    } catch (e) {
+      const detail = e.bodyText ? ` — ${e.bodyText}` : '';
+      res.write(`ERROR ${e.name || 'Error'}: ${e.message}${detail}\n`);
     }
     return res.end();
   }

@@ -148,8 +148,8 @@
           <button type="button" id="pickerReloadBtn" class="chip-btn" style="flex:none; padding:0 14px;" title="Reload latest 10">↻ reload</button>
         </div>
         <div style="border:1px solid #eef0f3; border-radius:9px; background:#fafbfc; overflow:hidden;">
-          <div style="display:grid; grid-template-columns:1fr 32px; gap:6px; padding:8px 11px 6px; border-bottom:1px solid #eef0f3;">
-            <div style="display:grid; grid-template-columns:92px 1fr 40px 32px 74px; gap:6px; padding:0 8px;">
+          <div style="display:grid; grid-template-columns:1fr 42px; gap:6px; padding:8px 11px 6px; border-bottom:1px solid #eef0f3;">
+            <div style="display:grid; grid-template-columns:290px 150px 34px 32px 68px; gap:6px; padding:0 8px;">
               <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Id</span>
               <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">RequestNo</span>
               <span style="font:600 12px 'IBM Plex Sans'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3;">Ver</span>
@@ -543,16 +543,16 @@
     for (const p of state.pickerResults) {
       const active = state.selectedProposal && state.selectedProposal.id === p.id;
       const row = document.createElement('div');
-      row.style.cssText = 'display:grid; grid-template-columns:1fr 32px; gap:6px; align-items:center; border-radius:6px;'
+      row.style.cssText = 'display:grid; grid-template-columns:1fr 42px; gap:6px; align-items:center; border-radius:6px;'
         + (active ? ' background:color-mix(in srgb, var(--accent) 9%, #fff);' : '');
       const statusLabel = PROPOSAL_STATUS[p.status] || String(p.status);
       const gc = GROUP_COLOR[p.groupId] || { fg: '#667085', bg: '#f1f3f5' };
 
       const sel = document.createElement('button');
       sel.type = 'button';
-      sel.style.cssText = 'display:grid; grid-template-columns:92px 1fr 40px 32px 74px; gap:6px; align-items:center; min-width:0; text-align:left; padding:8px 8px; background:none; border-radius:6px;';
+      sel.style.cssText = 'display:grid; grid-template-columns:290px 150px 34px 32px 68px; gap:6px; align-items:center; min-width:0; text-align:left; padding:8px 8px; background:none; border-radius:6px;';
       sel.innerHTML =
-        '<span title="' + p.id + '" style="font:400 13px \'IBM Plex Mono\',monospace; color:#98a2b3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + p.id.slice(0, 8) + '…' + p.id.slice(-4) + '</span>'
+        '<span title="' + p.id + '" style="font:400 13px \'IBM Plex Mono\',monospace; color:#98a2b3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + p.id + '</span>'
         + '<span style="font:' + (active ? '500' : '400') + ' 14px \'IBM Plex Mono\',monospace; color:' + (active ? 'var(--accent)' : '#475467') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + p.requestNo + '</span>'
         + '<span style="font:400 13px \'IBM Plex Mono\',monospace; color:#98a2b3;">v' + p.version + '</span>'
         + '<span style="font:600 12px \'IBM Plex Mono\',monospace; padding:3px 0; border-radius:5px; text-align:center; color:' + gc.fg + '; background:' + gc.bg + ';">' + (GROUP_LETTER[p.groupId] || '?') + '</span>'
@@ -892,6 +892,38 @@
       });
       return;
     }
+    const inspCopyTrigger = e.target.closest('.insp-copy-btn');
+    if (inspCopyTrigger) {
+      const val = inspCopyTrigger.getAttribute('data-copy') || '';
+      try { navigator.clipboard.writeText(val); } catch (err) { /* clipboard unavailable */ }
+      inspCopyTrigger.textContent = '✓';
+      setTimeout(() => { inspCopyTrigger.textContent = '⧉'; }, 1300);
+      return;
+    }
+    const markDraftBtn = e.target.closest('.insp-act-btn[data-act="mark-draft"]');
+    if (markDraftBtn) {
+      openInspModal({
+        title: 'Mark as Draft?',
+        message: 'Flips ProposalStatus Temp(0) → Draft(1) directly in the DB (no API for this — see README). Temp proposals are swept away whenever the cleanup job runs.',
+        requireReason: false,
+        confirmLabel: 'Mark Draft',
+        confirmColor: '#0d5cb6',
+        onConfirm: () => markDraftOnRow(),
+      });
+      return;
+    }
+    const deleteBtn = e.target.closest('.insp-act-btn[data-act="delete"]');
+    if (deleteBtn) {
+      openInspModal({
+        title: 'Delete this proposal?',
+        message: 'Hard delete via the real API (DELETE /requests/{id}) — cascades to ProposalDetail, ProposalCustomer, ProposalProduct, ProposalFile, and ApprovalHistory. This cannot be undone.',
+        requireReason: false,
+        confirmLabel: 'Delete',
+        confirmColor: '#b91c1c',
+        onConfirm: () => deleteProposalOnRow(),
+      });
+      return;
+    }
     if (e.target.closest('.pl-json-close')) {
       const box = $('plJsonBox');
       box.style.display = 'none';
@@ -1059,10 +1091,81 @@
     return '<div class="result-card" style="display:block;">'
       + (title ? '<div class="section-title">' + title + '</div>' : '') + bodyHtml + '</div>';
   }
+  function inspCopyBtn(value, title) {
+    return '<button type="button" class="insp-copy-btn" data-copy="' + escH(value) + '" title="' + escH(title) + '" style="border:none; background:transparent; color:#98a2b3; font:600 12px \'IBM Plex Mono\',monospace; cursor:pointer; padding:2px 4px; border-radius:5px; line-height:1;">⧉</button>';
+  }
   function inspKV(label, value) {
     return '<div style="min-width:0;"><div style="font:500 11.5px \'IBM Plex Sans\'; letter-spacing:.05em; text-transform:uppercase; color:#b0b7c3; margin-bottom:3px;">' + label + '</div>'
       + '<div style="font:400 13.5px \'IBM Plex Mono\',monospace; color:#1a1d23; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + value + '</div></div>';
   }
+  // Rebate footer (This Page × N + proposal Summary) + P.M. Max — Type R/S only.
+  // Table look mirrors the X-ray tile's Summary/P.M. Max screens (renderXraySummary/
+  // renderXrayPmMax) so the same numbers read the same way in both places.
+  function renderRebateFooterCards(rf) {
+    if (!rf) return '';
+    const fmtN = (n) => Number(n).toLocaleString('en-US');
+    const chColor = (n) => (n < 0 ? '#b91c1c' : '#15803d');
+    const th = (t, right) => '<th style="font:600 10.5px \'IBM Plex Sans\'; letter-spacing:.03em; text-transform:uppercase; color:#98a2b3; text-align:' + (right ? 'right' : 'left') + '; padding:9px 10px; border-bottom:1px solid #e7e9ee; background:#fafbfc; white-space:nowrap;">' + t + '</th>';
+    const td = (v, opts) => '<td style="font:400 12px \'IBM Plex Mono\',monospace; color:' + ((opts && opts.color) || '#475467') + '; text-align:' + ((opts && opts.left) ? 'left' : 'right') + '; padding:8px 10px; border-bottom:1px solid #eef0f3; white-space:nowrap;' + ((opts && opts.bold) ? ' font-weight:600;' : '') + '">' + v + '</td>';
+
+    const pids = rf.summary.perProduct.map((p) => p.productId);
+    let out = '';
+
+    // This Page footer — one 3-row block (Current/Latest/Changed) per page.
+    let pageRows = '';
+    for (const pg of rf.pages) {
+      const get = (pid, key) => (pg.perProduct.find((x) => x.productId === pid) || {})[key] ?? 0;
+      const label = 'Page ' + pg.pageNumber + (pg.isAddedPage ? ' <span style="font:600 9.5px \'IBM Plex Mono\',monospace; color:#0d5cb6; background:rgba(88,166,255,.13); padding:1px 6px; border-radius:4px;">ADDED</span>' : '');
+      pageRows += '<tr>' + td(label + ' · Current', { left: true, bold: true }) + pids.map((pid) => td(fmtN(get(pid, 'current')), { bold: true })).join('') + '</tr>'
+        + '<tr>' + td(label + ' · Latest', { left: true }) + pids.map((pid) => td(fmtN(get(pid, 'latest')))).join('') + '</tr>'
+        + '<tr>' + td(label + ' · Changed', { left: true }) + pids.map((pid) => td(fmtN(get(pid, 'changed')), { bold: true, color: chColor(get(pid, 'changed')) })).join('') + '</tr>';
+    }
+    out += inspCard('Rebate footer · This Page — RebateWrapper.tsx calcSumFor/calcLatestSum',
+      '<div class="devkit-scroll" style="overflow-x:auto; border:1px solid #eef0f3; border-radius:10px;">'
+      + '<table style="border-collapse:collapse; width:100%;"><tr>' + th('Row') + pids.map((p) => th(escH(p), true)).join('') + '</tr>' + pageRows + '</table></div>');
+
+    // Summary footer of proposal — same grain as the real Request › Summary footer.
+    const sf = rf.summary;
+    const baselineBadge = sf.baselineUsed === 'recomputed'
+      ? '<span class="status-pill" style="background:rgba(63,185,80,.12); color:#15803d;">Latest = recomputed baseline from previous</span>'
+      : '<span class="status-pill" style="background:rgba(210,153,34,.14); color:#a16207;">no PreviousId — Latest = fallback max(old) per section</span>';
+    out += inspCard('', '<div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;"><span class="section-title" style="margin:0;">Summary footer of proposal</span>' + baselineBadge + '</div>'
+      + '<div class="devkit-scroll" style="overflow-x:auto; border:1px solid #eef0f3; border-radius:10px;">'
+      + '<table style="border-collapse:collapse; width:100%;">'
+      + '<tr>' + th('Footer row') + pids.map((p) => th(escH(p), true)).join('') + '</tr>'
+      + '<tr>' + td('Current Discount & Rebate of Proposal', { left: true, bold: true }) + sf.perProduct.map((p) => td(fmtN(p.current), { bold: true })).join('') + '</tr>'
+      + '<tr>' + td('Latest Approved Discount & Rebate', { left: true }) + sf.perProduct.map((p) => td(fmtN(p.latest))).join('') + '</tr>'
+      + '<tr>' + td('Changed', { left: true }) + sf.perProduct.map((p) => td(fmtN(p.changed), { bold: true, color: chColor(p.changed) })).join('') + '</tr>'
+      + '</table></div>');
+
+    // P.M. Max — stored (meta.pmLastStep) vs expected (BE would inject today).
+    const pm = rf.pmMax;
+    const fmtV = (v) => (v === null ? '<span style="color:#b0b7c3;">—</span>' : fmtN(v));
+    const mismatches = pm.filter((x) => x.match === false).length;
+    const comparable = pm.some((x) => x.match !== null);
+    const pmBadge = !comparable
+      ? '<span class="status-pill" style="background:rgba(210,153,34,.14); color:#a16207;">no PreviousId — stored meta shown, nothing to compare</span>'
+      : mismatches
+        ? '<span class="status-pill" style="background:rgba(248,81,73,.12); color:#b91c1c;">' + mismatches + ' stale / ' + pm.length + ' cells</span>'
+        : '<span class="status-pill" style="background:rgba(63,185,80,.12); color:#15803d;">all ' + pm.length + ' cells match expected baseline</span>';
+    const pmTh = (t) => '<th style="font:600 10.5px \'IBM Plex Sans\'; letter-spacing:.03em; text-transform:uppercase; color:#98a2b3; text-align:left; padding:9px 10px; border-bottom:1px solid #e7e9ee; background:#fafbfc;">' + t + '</th>';
+    const pmTd = (v, color, bold) => '<td style="font:400 12px \'IBM Plex Mono\',monospace; color:' + (color || '#475467') + '; padding:7px 10px; border-bottom:1px solid #eef0f3;' + (bold ? ' font-weight:600;' : '') + '">' + v + '</td>';
+    out += inspCard('', '<div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;"><span class="section-title" style="margin:0;">P.M. Max — stored vs expected</span>' + pmBadge + '</div>'
+      + '<div class="devkit-scroll" style="overflow-x:auto; border:1px solid #eef0f3; border-radius:10px;">'
+      + '<table style="border-collapse:collapse; width:100%;">'
+      + '<tr>' + pmTh('Page') + pmTh('Section') + pmTh('Product') + pmTh('Stored') + pmTh('Expected') + pmTh('Status') + '</tr>'
+      + pm.map((x) => '<tr>'
+          + pmTd(x.page + (x.addedPage ? ' <span style="font:600 9.5px \'IBM Plex Mono\',monospace; color:#0d5cb6; background:rgba(88,166,255,.13); padding:1px 6px; border-radius:4px;">ADDED→p1</span>' : ''))
+          + pmTd(escH(x.section)) + pmTd(escH(x.productId))
+          + pmTd(fmtV(x.stored), x.match === false ? '#b91c1c' : undefined, x.match === false)
+          + pmTd(fmtV(x.expected))
+          + pmTd(x.match === null ? '<span style="color:#b0b7c3;">n/a</span>' : x.match ? '<span style="color:#15803d;">✓</span>' : '<span style="color:#b91c1c; font-weight:600;">STALE</span>')
+        + '</tr>').join('')
+      + '</table></div>');
+
+    return out;
+  }
+
   function renderInspectReport(r) {
     if (!r || !r.proposal) return;
     const p = r.proposal;
@@ -1073,10 +1176,14 @@
     let html = inspCard('', ''
       + '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">'
       + '<span style="font:700 17px \'IBM Plex Mono\',monospace;">' + escH(p.requestNo) + '</span>'
+      + inspCopyBtn(p.requestNo, 'Copy RequestNo')
       + '<span style="font:400 13px \'IBM Plex Mono\',monospace; color:#98a2b3;">v' + p.version + '</span>'
       + '<span style="font:600 12px \'IBM Plex Mono\',monospace; padding:2px 9px; border-radius:5px; color:' + gc.fg + '; background:' + gc.bg + ';">Type ' + escH(p.typeLetter) + '</span>'
       + '<span style="font:600 12.5px \'IBM Plex Sans\'; padding:4px 11px; border-radius:20px; color:' + ss.fg + '; background:' + ss.bg + ';">' + escH(p.statusName) + '</span>'
-      + '<div style="flex:1;"></div><code style="font:400 12px \'IBM Plex Mono\',monospace; background:#f1f3f5; padding:3px 8px; border-radius:6px; border:1px solid #e7e9ee;">' + p.id.slice(0, 8) + '…' + p.id.slice(-4) + '</code></div>'
+      + (p.status === 0 ? '<button type="button" class="insp-act-btn" data-act="mark-draft" style="border:1px solid #0d5cb6; background:#fff; color:#0d5cb6; font:600 12.5px \'IBM Plex Sans\'; padding:5px 12px; border-radius:7px; cursor:pointer;">Mark Draft</button>' : '')
+      + (p.status === 1 ? '<button type="button" class="insp-act-btn" data-act="delete" style="border:1px solid #b91c1c; background:#fff; color:#b91c1c; font:600 12.5px \'IBM Plex Sans\'; padding:5px 12px; border-radius:7px; cursor:pointer;">Delete</button>' : '')
+      + '<div style="flex:1;"></div><code style="font:400 12px \'IBM Plex Mono\',monospace; background:#f1f3f5; padding:3px 8px; border-radius:6px; border:1px solid #e7e9ee;">' + p.id.slice(0, 8) + '…' + p.id.slice(-4) + '</code>'
+      + inspCopyBtn(p.id, 'Copy proposal id') + '</div>'
       + '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px 18px; margin-top:14px;">'
       + inspKV('Period', p.year + ' / ' + String(p.month).padStart(2, '0'))
       + inspKV('Customer group', escH(p.customerGroupCode))
@@ -1192,6 +1299,9 @@
     plBody += '<div id="plJsonBox" style="display:none; margin-top:10px; background:#0d1117; border-radius:10px; padding:12px 14px; max-height:360px; overflow:auto;"></div>';
     html += inspCard('Payloads · decoded (double-encoding handled)', plBody);
     lastPayloadsRaw = { rebate: (pl.rebate || {}).raw || '', special: (pl.special || {}).raw || '', accum: (pl.accum || {}).raw || '' };
+
+    // rebate footer / summary footer / P.M. Max — Type R/S only
+    html += renderRebateFooterCards(r.rebateFooter);
 
     // related
     const rel = r.related || {};
@@ -1765,6 +1875,57 @@
       appendLine('ERROR ' + e.message);
     } finally {
       await refreshInspectSilently();
+    }
+  }
+  async function markDraftOnRow() {
+    const proposalId = state.selectedProposal ? state.selectedProposal.id : '';
+    if (!proposalId) return;
+    try {
+      const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: state.env, module: 'inspector-mark-draft', proposalId }) });
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split('\n');
+        buf = parts.pop();
+        for (const line of parts) if (line.trim()) appendLine(line);
+      }
+      if (buf.trim()) appendLine(buf);
+    } catch (e) {
+      appendLine('ERROR ' + e.message);
+    } finally {
+      await refreshInspectSilently();
+    }
+  }
+  // Proposal is gone after this — refreshInspectSilently() would just 404, so
+  // drop the report and refetch the picker list instead (the deleted row
+  // won't come back, matching README's "re-selects if still present" rule).
+  async function deleteProposalOnRow() {
+    const proposalId = state.selectedProposal ? state.selectedProposal.id : '';
+    if (!proposalId) return;
+    try {
+      const res = await fetch('/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ env: state.env, module: 'inspector-delete', proposalId }) });
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split('\n');
+        buf = parts.pop();
+        for (const line of parts) if (line.trim()) appendLine(line);
+      }
+      if (buf.trim()) appendLine(buf);
+    } catch (e) {
+      appendLine('ERROR ' + e.message);
+    } finally {
+      hideInspectReport();
+      state.selectedProposal = null;
+      await refetchPickerAndReselect(null);
     }
   }
 

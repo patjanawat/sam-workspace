@@ -118,6 +118,22 @@ export function parsePages(payloadJson) {
 
 const countable = (row, sectionKey) => row?.range != null || sectionKey === DISCOUNT_SECTION;
 
+// One section's rows → {productId: max(field)}. Ranged sections take the max
+// across their range rows; discountHeader (flat, single row) just yields that
+// row's own value. Shared by the cross-page picker below and by the
+// single-page "This Page" footer.
+function sectionMaxByProduct(sec, sectionKey, field) {
+  const byProduct = {};
+  for (const row of sec.rows ?? []) {
+    if (!countable(row, sectionKey)) continue;
+    for (const v of row.values ?? []) {
+      if (!v?.productId) continue;
+      byProduct[v.productId] = Math.max(byProduct[v.productId] ?? 0, parseNum(v[field] ?? 0));
+    }
+  }
+  return byProduct;
+}
+
 // Per-section pass over pages: pick the last qualifying page per section and
 // reduce its rows with `take(values, acc)`.
 function lastPageMaxBySection(pages, field, { skipAdded = false } = {}) {
@@ -134,15 +150,7 @@ function lastPageMaxBySection(pages, field, { skipAdded = false } = {}) {
   }
   const bySection = {};
   for (const [sectionKey, { sec }] of lastPage) {
-    const byProduct = {};
-    for (const row of sec.rows ?? []) {
-      if (!countable(row, sectionKey)) continue;
-      for (const v of row.values ?? []) {
-        if (!v?.productId) continue;
-        byProduct[v.productId] = Math.max(byProduct[v.productId] ?? 0, parseNum(v[field] ?? 0));
-      }
-    }
-    bySection[sectionKey] = byProduct;
+    bySection[sectionKey] = sectionMaxByProduct(sec, sectionKey, field);
   }
   return bySection;
 }
@@ -163,6 +171,57 @@ export function computeCurrent(payloadJson) {
     }
   }
   return { bySection, productIds };
+}
+
+// -------------------------------------------------------- this-page footer --
+
+// RebateWrapper.tsx calcSumFor/calcLatestSum — per-PAGE (not cross-page)
+// Current/Latest/Changed: Current = max(new) per section on THIS page only;
+// Latest = Σ stored meta.pmLastStep per section + discountHeader's own `old`
+// (not the cross-page baseline lookup computeSummaryFooter uses). Added pages
+// (clone, no counterpart) force Latest = 0 regardless of copied old/pmLastStep
+// values (SAM-1803) — editing them can never move Latest.
+export function computePageFooters(payloadJson) {
+  const pages = parsePages(payloadJson);
+  return pages.filter((p) => !p.deleted).map((page) => {
+    const productIds = [];
+    const seen = new Set();
+    const track = (pid) => { if (pid && !seen.has(pid)) { seen.add(pid); productIds.push(pid); } };
+    for (const s of page.sections) {
+      for (const row of s.rows ?? []) for (const v of row.values ?? []) track(v?.productId);
+      for (const item of s.meta?.pmLastStep ?? []) track(item?.productId);
+    }
+
+    const current = {};
+    const latest = {};
+    for (const s of page.sections) {
+      if (!s?.section) continue;
+      const cur = sectionMaxByProduct(s, s.section, 'new');
+      for (const [pid, v] of Object.entries(cur)) current[pid] = (current[pid] ?? 0) + v;
+
+      if (page.isAddedPage) continue; // Latest forced to 0 for added pages
+      if (s.section === DISCOUNT_SECTION) {
+        const disc = sectionMaxByProduct(s, DISCOUNT_SECTION, 'old');
+        for (const [pid, v] of Object.entries(disc)) latest[pid] = (latest[pid] ?? 0) + v;
+      } else {
+        for (const item of s.meta?.pmLastStep ?? []) {
+          if (!item?.productId) continue;
+          latest[item.productId] = (latest[item.productId] ?? 0) + (Number(item.value) || 0);
+        }
+      }
+    }
+
+    return {
+      pageNumber: page.pageNumber,
+      isAddedPage: page.isAddedPage,
+      perProduct: productIds.map((productId) => ({
+        productId,
+        current: current[productId] ?? 0,
+        latest: latest[productId] ?? 0,
+        changed: (current[productId] ?? 0) - (latest[productId] ?? 0),
+      })),
+    };
+  });
 }
 
 // ------------------------------------------------------------------ footer --
