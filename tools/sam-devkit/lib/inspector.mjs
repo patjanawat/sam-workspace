@@ -3,6 +3,8 @@
 
 import { assertDevDbServer } from './guard.mjs';
 import { runSqlWide } from './db.mjs';
+import { computeSummaryFooter, computePageFooters } from './xray-summary.mjs';
+import { computePmMaxRows } from './xray-pmmax.mjs';
 
 const GUID_RE = /^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
 const esc = (v) => String(v).replace(/'/g, "''");
@@ -337,6 +339,13 @@ function relatedSql(id) {
     (SELECT f.FileName AS name, f.FilePath AS path FROM dbo.ProposalFile f WHERE f.ProposalId = '${id}' FOR JSON PATH) AS files`);
 }
 
+// Previous proposal's Type R/S rate rows — same source xray-summary.mjs /
+// xray-pmmax.mjs use to build the P.M. Max baseline.
+function prevTypeRsRowsSql(previousId) {
+  return jsonArr(`SELECT PRODUCT_CODE AS productCode, RATE_TYPE AS rateType, PAGE AS page, RATE AS rate
+    FROM dbo.ProposalProductTypeRS WHERE PROPOSAL_ID = '${esc(previousId)}'`);
+}
+
 export async function inspectProposal({ db, proposalId, readWide = runSqlWide, now, log = () => {} }) {
   if (!GUID_RE.test(proposalId || '')) throw new Error(`Invalid proposalId (must be GUID): ${proposalId}`);
   assertDevDbServer(db.server, db.allowedServers);
@@ -394,6 +403,21 @@ export async function inspectProposal({ db, proposalId, readWide = runSqlWide, n
     files: relatedRaw.files ?? [],
   };
 
+  // Rebate footer / P.M. Max only apply to Type R/S — Type P's payload is
+  // contract-based (no rate sections), same boundary the X-ray tile draws.
+  let rebateFooter = null;
+  if (p.groupId === 2 || p.groupId === 3) {
+    const prevRows = p.previousId
+      ? await readWide({ ...sam, sql: prevTypeRsRowsSql(p.previousId) }).then((j) => JSON.parse(j || '[]'))
+      : [];
+    const payloadJson = payloads.rebate.raw;
+    rebateFooter = {
+      pages: computePageFooters(payloadJson),
+      summary: computeSummaryFooter({ payloadJson, prevRows }),
+      pmMax: computePmMaxRows({ payloadJson, prevRows }),
+    };
+  }
+
   return {
     proposal: {
       ...p,
@@ -407,5 +431,6 @@ export async function inspectProposal({ db, proposalId, readWide = runSqlWide, n
     diagnosis,
     payloads,
     related,
+    rebateFooter,
   };
 }
